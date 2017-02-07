@@ -43,16 +43,16 @@ def print_table_with_title(title, table):
 
 
 def set_iptables_drop_icmp_protocol_unreachable():
-    cmd = 'iptables -I OUTPUT -p icmp --icmp-type protocol-unreachable -j DROP 2>1 1>/dev/null &&'\
-          'iptables -I FORWARD -p icmp --icmp-type protocol-unreachable -j DROP 2>1 1>/dev/null'
+    cmd = 'iptables -I OUTPUT -p icmp --icmp-type protocol-unreachable -j DROP 2>&1 1>/dev/null &&'\
+          'iptables -I FORWARD -p icmp --icmp-type protocol-unreachable -j DROP 2>&1 1>/dev/null'
     ret_val = subprocess.call(cmd, shell=True)
     if ret_val != 0:
         print >> sys.stderr, 'Failed to add iptables ICMP protocol-unreachable dropping rule'
 
 
 def restore_iptables_drop_icmp_protocol_unreachable():
-    cmd = 'iptables -D OUTPUT -p icmp --icmp-type protocol-unreachable -j DROP 2>1 1>/dev/null &&' \
-          'iptables -D FORWARD -p icmp --icmp-type protocol-unreachable -j DROP 2>1 1>/dev/null'
+    cmd = 'iptables -D OUTPUT -p icmp --icmp-type protocol-unreachable -j DROP 2>&1 1>/dev/null &&' \
+          'iptables -D FORWARD -p icmp --icmp-type protocol-unreachable -j DROP 2>&1 1>/dev/null'
     ret_val = subprocess.call(cmd, shell=True)
     if ret_val != 0:
         print >> sys.stderr, 'Failed to restore iptables rules'
