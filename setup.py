@@ -5,7 +5,7 @@ from setuptools import setup
 
 setup(
     name='pptp_auditor',
-    version='0.0.1.dev1',
+    version='0.1',
     description='Security auditing tool for PPTP VPN',
     author='Ján Sebechlebský',
     author_email='sebechlebskyjan@gmail.com',
