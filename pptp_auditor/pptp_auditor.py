@@ -4,6 +4,7 @@ import sys
 import texttable
 import socket
 import subprocess
+import time
 from .logger import setup_logger
 from .pptp import PPTPAutomaton
 from .ppp import LCPEnumAuthMethodAutomaton, EAPNegotiateAutomaton
@@ -98,8 +99,9 @@ def main():
 
     pkt_recorder = None
     if args.pcap_file is not None:
-        pkt_recorder = PacketRecorder(args.target, 'test.pcap')
+        pkt_recorder = PacketRecorder(args.target, args.pcap_file)
         pkt_recorder.start()
+        time.sleep(0.5)
 
     print 'Probing enabled LCP authentication methods'
     lcp_auth_methods = AuthMethodSet()
