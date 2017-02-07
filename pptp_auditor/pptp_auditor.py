@@ -3,6 +3,7 @@ import logging
 import sys
 import texttable
 import socket
+import subprocess
 from .logger import setup_logger
 from .pptp import PPTPAutomaton
 from .ppp import LCPEnumAuthMethodAutomaton, EAPNegotiateAutomaton
@@ -41,6 +42,22 @@ def print_table_with_title(title, table):
     print table_str + '\n'
 
 
+def set_iptables_drop_icmp_protocol_unreachable():
+    cmd = 'iptables -I OUTPUT -p icmp --icmp-type protocol-unreachable -j DROP 2>1 1>/dev/null &&'\
+          'iptables -I FORWARD -p icmp --icmp-type protocol-unreachable -j DROP 2>1 1>/dev/null'
+    ret_val = subprocess.call(cmd, shell=True)
+    if ret_val != 0:
+        print >> sys.stderr, 'Failed to add iptables ICMP protocol-unreachable dropping rule'
+
+
+def restore_iptables_drop_icmp_protocol_unreachable():
+    cmd = 'iptables -D OUTPUT -p icmp --icmp-type protocol-unreachable -j DROP 2>1 1>/dev/null &&' \
+          'iptables -D FORWARD -p icmp --icmp-type protocol-unreachable -j DROP 2>1 1>/dev/null'
+    ret_val = subprocess.call(cmd, shell=True)
+    if ret_val != 0:
+        print >> sys.stderr, 'Failed to restore iptables rules'
+
+
 def main():
     parser = argparse.ArgumentParser('PPTP Auditing tool')
     parser.add_argument('target', help='Adress of PPTP server')
@@ -55,6 +72,8 @@ def main():
                         action='store_true')
     parser.add_argument('-r','--record_pcap', help='Record communication with target to pcap file', default=None,
                         dest='pcap_file')
+    parser.add_argument('-di', '--dont_drop_icmp', help='Dont drop ICMP protocol-unreachable packets', default=True,
+                        dest='drop_icmp', action='store_false')
     parser.add_argument('-d', '--log-debug', help='Log debug information',
                         action='store_const', dest='loglevel',
                         const=logging.DEBUG, default=logging.INFO)
@@ -71,6 +90,9 @@ def main():
         print >> sys.stderr, 'You don\'t have sufficient permission to create raw sockets.\n'\
                              'Try running pptp_auditor as root.'
         sys.exit(-1)
+
+    if args.drop_icmp:
+        set_iptables_drop_icmp_protocol_unreachable()
 
     (target_hostname, alias_list, target_ip) = socket.gethostbyaddr(args.target)
 
@@ -109,6 +131,8 @@ def main():
     finally:
         if pkt_recorder is not None:
             pkt_recorder.stop()
+        if args.drop_icmp:
+            restore_iptables_drop_icmp_protocol_unreachable()
 
     # Print PPTP connection info
     table = texttable.Texttable()
