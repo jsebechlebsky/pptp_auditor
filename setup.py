@@ -18,7 +18,7 @@ setup(
             'pptp_auditor=pptp_auditor.pptp_auditor:main',
         ],
     },
-    dependency_links=['http://github.com/jsebechlebsky/scapy-ssl_tls/tarball/scapy233_compat#egg=scapy-ssl_tls-1.3.0'],
-    install_requires=['scapy-ssl_tls==1.3.0', 'texttable'],
+    dependency_links=['http://github.com/jsebechlebsky/scapy/tarball/master#egg=scapy'],
+    install_requires=['scapy', 'texttable', 'cryptography'],
 )
 

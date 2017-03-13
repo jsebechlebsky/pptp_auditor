@@ -85,8 +85,8 @@ class PPTPAutomaton(Automaton):
     def __init__(self, *args, **kargs):
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         ss = StreamSocket(s)
-        Automaton.__init__(self, *args, ll=lambda: ss, recvsock=lambda: ss,  **kargs)
         self.ppp_automaton = None
+        Automaton.__init__(self, *args, ll=lambda: ss, recvsock=lambda: ss,  **kargs)
 
     def parse_args(self, target_ip, ppp_automaton, port=1723, send_call_clear=False, **kargs):
         Automaton.parse_args(self, **kargs)
@@ -100,6 +100,8 @@ class PPTPAutomaton(Automaton):
 
     @ATMT.state(initial=1)
     def state_connect(self):
+
+        assert(self.ppp_automaton is not None)
         # Connect socket to target server
         print 'Connecting to {0}:{1} ...'.format(self.target_ip, self.port),
         try:

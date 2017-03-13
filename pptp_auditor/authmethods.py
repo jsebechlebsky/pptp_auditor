@@ -1,5 +1,5 @@
-from scapy_pptp import ppp_lcp
 from scapy.layers.l2 import EAP as EAP_pkt, eap_types
+from scapy.layers.ppp import PPP_LCP_Auth_Protocol_Option
 
 
 class AuthMethod:
@@ -53,7 +53,7 @@ class PAP(LCPAuthMethod):
 
     def __init__(self):
         LCPAuthMethod.__init__(self)
-        self.pkt = ppp_lcp.PPP_LCP_Auth_Protocol_Option()
+        self.pkt = PPP_LCP_Auth_Protocol_Option()
 
     @classmethod
     def __str__(self):
@@ -67,7 +67,7 @@ class CHAP_MD5(LCPAuthMethod):
 
     def __init__(self):
         LCPAuthMethod.__init__(self)
-        self.pkt = ppp_lcp.PPP_LCP_Auth_Protocol_Option(auth_protocol=0xc223, algorithm='MD5')
+        self.pkt = PPP_LCP_Auth_Protocol_Option(auth_protocol=0xc223, algorithm='MD5')
 
     @classmethod
     def __str__(self):
@@ -78,7 +78,7 @@ class CHAP_SHA1(LCPAuthMethod):
 
     def __init__(self):
         LCPAuthMethod.__init__(self)
-        self.pkt = ppp_lcp.PPP_LCP_Auth_Protocol_Option(auth_protocol=0xc223, algorithm='SHA1')
+        self.pkt = PPP_LCP_Auth_Protocol_Option(auth_protocol=0xc223, algorithm='SHA1')
 
     @classmethod
     def __str__(self):
@@ -89,7 +89,7 @@ class MSCHAP(LCPAuthMethod):
 
     def __init__(self):
         LCPAuthMethod.__init__(self)
-        self.pkt = ppp_lcp.PPP_LCP_Auth_Protocol_Option(auth_protocol=0xc223, algorithm='MS-CHAP')
+        self.pkt = PPP_LCP_Auth_Protocol_Option(auth_protocol=0xc223, algorithm='MS-CHAP')
 
     @classmethod
     def __str__(self):
@@ -100,7 +100,7 @@ class MSCHAPv2(LCPAuthMethod):
 
     def __init__(self):
         LCPAuthMethod.__init__(self)
-        self.pkt = ppp_lcp.PPP_LCP_Auth_Protocol_Option(auth_protocol=0xc223, algorithm="MS-CHAP-v2")
+        self.pkt = PPP_LCP_Auth_Protocol_Option(auth_protocol=0xc223, algorithm="MS-CHAP-v2")
 
     @classmethod
     def __str__(self):
@@ -111,7 +111,7 @@ class EAP(LCPAuthMethod):
 
     def __init__(self):
         LCPAuthMethod.__init__(self)
-        self.pkt = ppp_lcp.PPP_LCP_Auth_Protocol_Option(auth_protocol=0xc227)
+        self.pkt = PPP_LCP_Auth_Protocol_Option(auth_protocol=0xc227)
 
     @classmethod
     def __str__(self):

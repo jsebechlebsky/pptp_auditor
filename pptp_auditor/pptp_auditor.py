@@ -108,10 +108,11 @@ def main():
     ppp_lcp_auth_enum_automaton = LCPEnumAuthMethodAutomaton(target_ip[0], lcp_auth_methods=lcp_auth_methods)
     pptp_automaton = PPTPAutomaton(args.target, ppp_lcp_auth_enum_automaton, port=args.port)
 
+    pptp_info = None
+    eap_auth_methods = None
     try:
         pptp_info = pptp_automaton.run()
 
-        eap_auth_methods = None
         if pptp_info is not None and pptp_info.ppp_info.get_method_enabled_state(EAP):
             if args.test_all_eap_methods:
                 eap_auth_methods = EAPAuthMethodSet(methods=get_all_eap_authmethods())

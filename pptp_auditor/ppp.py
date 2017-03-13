@@ -1,9 +1,13 @@
 from scapy.automaton import Automaton, ATMT
 from scapy.layers.inet import IP
-from scapy.layers.ppp import HDLC
+from scapy.layers.ppp import HDLC, PPP, PPP_LCP_ACCM_Option, PPP_LCP_MRU_Option, PPP_LCP_Magic_Number_Option,\
+                             PPP_LCP_Configure, PPP_LCP_Echo, PPP_LCP_Auth_Protocol_Option
+from scapy.layers.l2 import GRE_PPTP
 from scapy_pptp.eap_tls import EAP, EAP_TLS
-from scapy_ssl_tls.ssl_tls import TLSHandshake, TLSClientHello, TLSRecord, TLS, TLSCertificateList, TLSServerHello
-from scapy_pptp.ppp_lcp import *
+#from scapy_ssl_tls.ssl_tls import TLSHandshake, TLSClientHello, TLSRecord, TLS, TLSCertificateList, TLSServerHello
+from scapy.layers.tls.handshake import TLSClientHello, TLSServerHello
+from scapy.layers.tls.record import TLS
+#from scapy_pptp.ppp_lcp import *
 from authmethods import AuthMethodSet, EAPAuthMethodSet
 from .logger import write_log_info, write_log_error, write_log_warning, write_log_debug
 import random
@@ -51,7 +55,7 @@ class LCPAutomaton(Automaton):
     def master_filter(self, pkt):
         #if IP in pkt and pkt[IP].src == self.target and GREPPTP in pkt:
         #    pkt.show2()
-        return IP in pkt and pkt[IP].src == self.target and GREPPTP in pkt
+        return IP in pkt and pkt[IP].src == self.target and GRE_PPTP in pkt
 
     def set_call_id(self, call_id):
         self.call_id = call_id
@@ -59,7 +63,7 @@ class LCPAutomaton(Automaton):
     def send_ppp(self, pkt, proto):
         payload = PPP(proto=proto) / pkt if self.ppp_state.address_control_compression else \
             HDLC() / PPP(proto=proto) / pkt
-        gre = GREPPTP(seqnum_present=1,
+        gre = GRE_PPTP(seqnum_present=1,
                        acknum_present=1 if self.gre_ack is not None else 0,
                        seqence_number=self.gre_seq,
                        ack_number=self.gre_ack,
@@ -79,7 +83,7 @@ class LCPAutomaton(Automaton):
 
     def send_gre_ack(self):
         if self.gre_ack is not None:
-            gre_ack = GREPPTP(seqnum_present=0,
+            gre_ack = GRE_PPTP(seqnum_present=0,
                                acknum_present=1,
                                ack_number=self.gre_ack,
                                call_id=self.call_id,
@@ -90,11 +94,11 @@ class LCPAutomaton(Automaton):
             return pkt_to_send
 
     def register_gre_reception(self, pkt):
-        if GREPPTP in pkt:
-            if pkt[GREPPTP].seqnum_present:
-                self.gre_ack = max(pkt[GREPPTP].seqence_number, self.gre_ack) if self.gre_ack is not None else\
-                               pkt[GREPPTP].seqence_number
-            if pkt[GREPPTP].acknum_present:
+        if GRE_PPTP in pkt:
+            if pkt[GRE_PPTP].seqnum_present:
+                self.gre_ack = max(pkt[GRE_PPTP].seqence_number, self.gre_ack) if self.gre_ack is not None else\
+                               pkt[GRE_PPTP].seqence_number
+            if pkt[GRE_PPTP].acknum_present:
                 #TODO acknowledge reception
                 pass
 
@@ -482,8 +486,7 @@ class EAPNegotiateAutomaton(LCPAutomaton):
         log_msg = 'Received EAP-TLS request id {0}'.format(pkt[EAP_TLS].id)
         write_log_info(self.eap_tls_log_tag, log_msg)
 
-        tls_client_hello = TLSRecord() / TLSHandshake() / TLSClientHello(compression_methods=range(0xff)[::-1],
-                                                                         cipher_suites=range(0xff))
+        tls_client_hello = TLS(msg=TLSClientHello(version='TLS 1.0'))
         eap_tls_client_hello = EAP_TLS(code=2, id=pkt[EAP_TLS].id, L=1,
                                        tls_message_len=len(tls_client_hello), tls_data=str(tls_client_hello))
         self.send_eap(eap_tls_client_hello)
@@ -544,21 +547,21 @@ class EAPNegotiateAutomaton(LCPAutomaton):
     def state_receive_eap_tls_server_hello(self):
         pass
 
-    def dump_certificates(self, pkt):
-        assert (TLSCertificateList in pkt)
-        if self.cert_file is not None:
-            certificates = []
-            for cert in pkt[TLSCertificateList].certificates:
-                certificates.append(cert.data)
-            try:
-                with open(self.cert_file, 'w') as f:
-                    for certificate in certificates:
-                        f.write(der2pem(str(certificate)))
-            except IOError as e:
-                err_msg = 'Error writing server certificate to {0}'.format(self.cert_file)
-                print >> sys.stderr, err_msg
-                write_log_error('pptp_auditor', err_msg)
-                raise self.state_end()
+#    def dump_certificates(self, pkt):
+#        assert (TLSCertificateList in pkt)
+#        if self.cert_file is not None:
+#            certificates = []
+#            for cert in pkt[TLSCertificateList].certificates:
+#                certificates.append(cert.data)
+#            try:
+#                with open(self.cert_file, 'w') as f:
+#                    for certificate in certificates:
+#                        f.write(der2pem(str(certificate)))
+#            except IOError as e:
+#                err_msg = 'Error writing server certificate to {0}'.format(self.cert_file)
+#                print >> sys.stderr, err_msg
+#                write_log_error('pptp_auditor', err_msg)
+#                raise self.state_end()
 
     @ATMT.receive_condition(state=state_receive_eap_tls_server_hello, prio=1)
     def receive_eap_tls_server_hello_receive(self, pkt):
@@ -580,14 +583,15 @@ class EAPNegotiateAutomaton(LCPAutomaton):
                 if pkt[EAP_TLS].M == 0:
                     #print 'Composed_len = {0}'.format(len(self.eap_tls_data))
                     tls_pkt = TLS(self.eap_tls_data)
+                    #tls_pkt.show2()
                     #print 'Reassembled {0}B of tls_data'.format(len(self.eap_tls_data))
-                    if TLSServerHello in tls_pkt and TLSCertificateList in tls_pkt:
-                        log_msg = 'Reassembled ServerHello contains certificate chain of {0} certificate(s)'\
-                                  .format(len(tls_pkt[TLSCertificateList].certificates))
-                        write_log_info(self.eap_tls_log_tag, log_msg)
-                        if self.cert_file is not None:
-                            print 'Dumping TLS Certificate chain to {0}'.format(self.cert_file)
-                            self.dump_certificates(tls_pkt)
+#                    if TLSServerHello in tls_pkt and TLSCertificateList in tls_pkt:
+#                        log_msg = 'Reassembled ServerHello contains certificate chain of {0} certificate(s)'\
+#                                  .format(len(tls_pkt[TLSCertificateList].certificates))
+#                        write_log_info(self.eap_tls_log_tag, log_msg)
+#                        if self.cert_file is not None:
+#                            print 'Dumping TLS Certificate chain to {0}'.format(self.cert_file)
+#                            self.dump_certificates(tls_pkt)
                     raise self.state_end()
                 else:
                     log_msg = 'Sending EAP-TLS Ack response id {0}'.format(pkt[EAP_TLS].id)

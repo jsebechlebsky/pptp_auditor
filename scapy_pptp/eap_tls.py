@@ -1,7 +1,9 @@
 from scapy.packet import Packet
 from scapy.fields import BitField, ByteEnumField, ByteField, ConditionalField, FieldLenField,\
                          IntField, ShortField, StrLenField
-from scapy.layers.l2 import eap_codes, eap_types
+from scapy.layers.l2 import eap_codes, eap_types, EAP as ORIGINAL_EAP
+from scapy.packet import bind_layers, split_layers
+from scapy.layers.ppp import PPP
 
 
 class EAP(Packet):
@@ -91,3 +93,6 @@ class EAP_TLS(EAP):
                    BitField('reserved', 0, 5),
                    ConditionalField(IntField('tls_message_len', 0), lambda pkt: pkt.L == 1),
                    StrLenField('tls_data', '', length_from=lambda pkt: pkt.len-6)]
+
+split_layers(PPP, ORIGINAL_EAP, proto=0xc227)
+bind_layers( PPP, EAP, proto=0xc227)
