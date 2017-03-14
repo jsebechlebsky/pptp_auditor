@@ -153,7 +153,7 @@ def main():
     table = texttable.Texttable()
     table.set_cols_align(['l', 'c'])
     table.add_row(['PPTP server domain', target_hostname if target_hostname is not None else 'Unknown'])
-    table.add_row(['PPTP server aliases', '\n'.join(alias_list) if len(alias_list) > 0 else 'Unknown'])
+    table.add_row(['PPTP server aliases', '\n'.join(alias_list) if alias_list is not None and len(alias_list) > 0 else 'Unknown'])
     table.add_row(['PPTP server IP', target_ip[0] if target_ip[0] is not None else 'Unknown'])
     table.add_row(['PPTP port', args.port])
     if pptp_info is not None:
