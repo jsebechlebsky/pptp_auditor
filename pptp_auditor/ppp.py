@@ -21,6 +21,7 @@ class PPPState:
         self.address_control_compression = False
         self.auth_method = None
         self.magic_number = None
+        self.peer_magic_number = None
         self.client_async_control_map = 0
         self.server_async_control_map = 0
 
@@ -217,7 +218,7 @@ class LCPEnumAuthMethodAutomaton(LCPAutomaton):
                 write_log_info(self.log_tag, log_msg)
                 naked_options.append(suggested_option)
             elif option.type == 5:  # Magic number
-                new_conf.magic_number = option.magic_number
+                new_conf.peer_magic_number = option.magic_number
                 log_msg = 'Received LCP Configure request id {0} is requesting magic_number={1}'\
                           .format(req.id, option.magic_number)
                 write_log_info(self.log_tag, log_msg)
@@ -401,6 +402,8 @@ class EAPNegotiateAutomaton(LCPAutomaton):
                 raise self.state_eap_negotiated()
 
     def process_configure_ack(self, resp):
+        log_msg = 'Received Configure-Ack to request with id {0}'.format(resp.id)
+        write_log_info(self.log_tag, log_msg)
         acked_eap = False
         for option in resp.options:
             if option.type == 1:
@@ -413,6 +416,10 @@ class EAPNegotiateAutomaton(LCPAutomaton):
                 acked_eap = True
                 log_msg = 'Server Ack-ed EAP auth method from request {0}'\
                           .format(resp.id)
+                write_log_info(self.log_tag, log_msg)
+            elif option.type == 5:  # Magic number
+                self.ppp_state.magic_number = option.magic_number
+                log_msg = 'Setting magic number to {0}'.format(option.magic_number)
                 write_log_info(self.log_tag, log_msg)
         self.send_gre_ack()
         if acked_eap:
@@ -497,7 +504,15 @@ class EAPNegotiateAutomaton(LCPAutomaton):
         self.register_gre_reception(pkt)
 
         if PPP_LCP_Configure in pkt:
-            pass # TODO handle this
+            if pkt[PPP_LCP_Configure].code == 1:  # LCP Configure-Request
+                self.process_configure_request(pkt[PPP_LCP_Configure])
+            elif pkt[PPP_LCP_Configure].code == 2:  # LCP Configure-Ack
+                self.process_configure_ack(pkt[PPP_LCP_Configure])
+            elif pkt[PPP_LCP_Configure].code == 3:  # LCP Configure-Nak
+                self.process_configure_nak(pkt[PPP_LCP_Configure])
+            elif pkt[PPP_LCP_Configure].code == 4:  # LCP Configure-Reject
+                self.process_configure_reject(pkt[PPP_LCP_Configure])
+            # TODO this might need some modification, we don't want auth method to change here
         elif PPP_LCP_Echo in pkt:
             self.respond_to_lcp_echo(pkt)
         elif EAP_TLS in pkt:
