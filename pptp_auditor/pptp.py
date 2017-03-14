@@ -213,6 +213,9 @@ class PPTPAutomaton(Automaton):
         pkt_pptp = PPTP(str(pkt))
         if PPTPEchoRequest in pkt_pptp:
             reply = PPTPEchoReply(identifier=pkt_pptp.identifier)
+            log_msg = 'Received Echo-Request with id {0}, responding with Echo-Reply'\
+                      .format(pkt_pptp.identifier)
+            write_log_info(self.log_tag, log_msg)
             self.send(reply)
 
     @ATMT.timeout(state_call_established, timeout=0.2)
