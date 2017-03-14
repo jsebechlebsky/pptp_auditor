@@ -120,7 +120,8 @@ class PPTPAutomaton(Automaton):
 
         # Send PPTP Start-Control-Connection-Request
         write_log_info(self.log_tag, 'Sending StartControlConnection message to server')
-        pkt = PPTPStartControlConnectionRequest(host_name='test', vendor_string='test')
+        pkt = PPTPStartControlConnectionRequest(protocol_version=0x0100,
+                                                host_name='test', vendor_string='test')
         self.send(pkt)
         raise self.state_start_control_connection_wait()
 
