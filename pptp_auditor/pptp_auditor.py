@@ -59,6 +59,18 @@ def restore_iptables_drop_icmp_protocol_unreachable():
         print >> sys.stderr, 'Failed to restore iptables rules'
 
 
+def get_target_address_info(target):
+    target_hostname = None
+    target_alias_list = None
+    target_ip = None
+    try:
+        (target_hostname, target_alias_list, target_ip) = socket.gethostbyaddr(target)
+    except socket.herror:
+        target_ip = [target]
+        # TODO check that target IP is proper IP address
+    return target_hostname, target_alias_list, target_ip
+
+
 def main():
     parser = argparse.ArgumentParser('PPTP Auditing tool')
     parser.add_argument('target', help='Adress of PPTP server')
@@ -95,7 +107,7 @@ def main():
     if args.drop_icmp:
         set_iptables_drop_icmp_protocol_unreachable()
 
-    (target_hostname, alias_list, target_ip) = socket.gethostbyaddr(args.target)
+    (target_hostname, alias_list, target_ip) = get_target_address_info(args.target)
 
     pkt_recorder = None
     if args.pcap_file is not None:
