@@ -1,6 +1,6 @@
 from scapy.automaton import Automaton, ATMT
 from scapy.supersocket import StreamSocket
-from scapy_pptp.pptp import *
+from scapy.layers.pptp import *
 from ppp import LCPEnumAuthMethodAutomaton, EAPNegotiateAutomaton
 from .logger import write_log_info, write_log_debug, write_log_error, write_log_warning
 from .authmethods import EAP
