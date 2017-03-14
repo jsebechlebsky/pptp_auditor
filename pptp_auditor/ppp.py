@@ -12,6 +12,7 @@ from .logger import write_log_info, write_log_error, write_log_warning, write_lo
 import random
 import copy
 import sys
+from threading import Event
 
 
 class PPPState:
@@ -48,6 +49,8 @@ class LCPAutomaton(Automaton):
             self.sent_requests = from_automaton.sent_requests
             self.next_conf_request_id = from_automaton.next_conf_request_id
             self.ppp_state = from_automaton.ppp_state
+        self.event_finished = Event()
+        self.result = None
         self.log_tag = 'PPP-LCP'
 
 
@@ -169,11 +172,17 @@ class LCPAutomaton(Automaton):
     def negotiate_timeout(self):
         pass
 
+    def is_finished(self):
+        return self.event_finished.isSet()
+
+    def get_result(self):
+        return self.result
+
     @ATMT.state(final=1)
     def state_end(self):
         #print 'Done'
-        self.automaton_done()
-        pass
+        self.event_finished.set()
+        self.result = self.automaton_done()
 
 
 class LCPEnumAuthMethodAutomaton(LCPAutomaton):
@@ -307,10 +316,6 @@ class LCPEnumAuthMethodAutomaton(LCPAutomaton):
 
     def automaton_done(self):
         return self.authmethods
-
-    @ATMT.state(final=1)
-    def state_end(self):
-        return self.automaton_done()
 
 
 class EAPNegotiateAutomaton(LCPAutomaton):

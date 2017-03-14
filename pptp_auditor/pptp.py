@@ -180,6 +180,9 @@ class PPTPAutomaton(Automaton):
                 write_log_info(self.log_tag, 'Received OutgoingCallReply - OK')
                 set_pptp_call_info_from_call_reply(self.call_info, pkt_pptp)
                 write_log_info(self.log_tag, self.call_info)
+                # Start PPP automaton here
+                self.ppp_automaton.set_call_id(self.call_info.call_id)
+                self.ppp_automaton.runbg()
                 raise self.state_call_established()
             else:
                 err_msg = 'Received OutgoingCallReply - Fail, result code = {0}, error_code = {1}, cause_code = {2}'\
@@ -203,13 +206,7 @@ class PPTPAutomaton(Automaton):
 
     @ATMT.state()
     def state_call_established(self):
-        #self.ppp_automaton = self.ppp_automaton_class(self.target_ip, self.call_info.call_id,
-        #                                              arg=self.ppp_automaton_arg)
-        self.ppp_automaton.set_call_id(self.call_info.call_id)
-        ppp_info = self.ppp_automaton.run()  # TODO this should be running on background
-        self.pptp_info.ppp_info = ppp_info
-
-        raise self.state_call_clear()
+        pass
 
     @ATMT.receive_condition(state_call_established, prio=1)
     def call_established_receive(self, pkt):
@@ -217,6 +214,15 @@ class PPTPAutomaton(Automaton):
         if PPTPEchoRequest in pkt_pptp:
             reply = PPTPEchoReply(identifier=pkt_pptp.identifier)
             self.send(reply)
+
+    @ATMT.timeout(state_call_established, timeout=0.2)
+    def call_established_timeout(self):
+        # TODO this could be done asynchronously using file descriptors
+        if self.ppp_automaton.is_finished():
+            self.pptp_info.ppp_info = self.ppp_automaton.get_result()
+            raise self.state_call_clear()
+        else:
+            raise self.state_call_established()
 
     @ATMT.state()
     def state_call_clear(self):
