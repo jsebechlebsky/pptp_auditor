@@ -85,14 +85,14 @@ class EAP_TLS(EAP):
     fields_desc = [ByteEnumField("code", 4, eap_codes),
                    ByteField("id", 0),
                    FieldLenField("len", None, fmt="H", length_of="tls_data",
-                                 adjust=lambda p, x: x + 6 if p.L == 1 else x + 10),
+                                 adjust=lambda p, x: x + 10 if p.L == 1 else x + 6),
                    ByteEnumField("type", 13, eap_types),
                    BitField('L', 0, 1),
                    BitField('M', 0, 1),
                    BitField('S', 0, 1),
                    BitField('reserved', 0, 5),
                    ConditionalField(IntField('tls_message_len', 0), lambda pkt: pkt.L == 1),
-                   StrLenField('tls_data', '', length_from=lambda pkt: pkt.len-6)]
+                   StrLenField('tls_data', '', length_from=lambda pkt: pkt.len-10 if pkt.L == 1 else pkt.len-6)]
 
 split_layers(PPP, ORIGINAL_EAP, proto=0xc227)
 bind_layers( PPP, EAP, proto=0xc227)
