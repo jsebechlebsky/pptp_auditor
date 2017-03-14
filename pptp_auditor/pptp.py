@@ -217,6 +217,10 @@ class PPTPAutomaton(Automaton):
                       .format(pkt_pptp.identifier)
             write_log_info(self.log_tag, log_msg)
             self.send(reply)
+        elif PPTPSetLinkInfo in pkt_pptp:
+            log_msg = 'Received Set-Link-Info with peer_call_id={0}, recv_accm={1}, send_accm={2}'\
+                      .format(pkt_pptp.peer_call_id, pkt_pptp.receive_accm, pkt_pptp.send_accm)
+            write_log_info(self.log_tag, log_msg)
 
     @ATMT.timeout(state_call_established, timeout=0.2)
     def call_established_timeout(self):
