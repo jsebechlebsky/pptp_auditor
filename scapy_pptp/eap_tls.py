@@ -53,7 +53,7 @@ class EAP(Packet):
             c = ord(_pkt[0])
             if c in [1, 2] and len(_pkt) >= 5:
                 t = ord(_pkt[4])
-            return cls.registered_options.get(t, cls)
+                return cls.registered_options.get(t, cls)
         return cls
 
     def answers(self, other):
