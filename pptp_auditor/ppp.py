@@ -483,6 +483,11 @@ class EAPNegotiateAutomaton(LCPAutomaton):
         else:
             # TODO Warning about uknown EAP type
             pass
+
+        if self.eap_last_requested_method is not None and requested_method is not None and\
+           self.eap_last_requested_method.eap_type != requested_method.eap_type:
+            self.eap_last_requested_method.set_disabled()
+
         log_msg = 'Received {0} request id {1}'.format(requested_method if requested_method is not None else 'Unknown',
                                                        pkt[EAP].id if EAP in pkt else pkt[EAP_TLS].id)
         write_log_info(self.eap_log_tag, log_msg)
