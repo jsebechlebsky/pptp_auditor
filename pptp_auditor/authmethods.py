@@ -222,17 +222,11 @@ class EAPCHAP(EAPAuthMethod):
     def __init__(self):
         EAPAuthMethod.__init__(self, 4)
 
-    def __str__(self):
-        return 'EAP-CHAP'
-
 
 class EAPTLS(EAPAuthMethod):
 
     def __init__(self):
         EAPAuthMethod.__init__(self, 13)
-
-    def __str__(self):
-        return 'EAP-TLS'
 
 
 class EAPPEAP(EAPAuthMethod):
@@ -240,26 +234,17 @@ class EAPPEAP(EAPAuthMethod):
     def __init__(self):
         EAPAuthMethod.__init__(self, 25)
 
-    def __str__(self):
-        return 'EAP-PEAP'
-
 
 class EAPMSCHAPv2(EAPAuthMethod):
 
     def __init__(self):
         EAPAuthMethod.__init__(self, 29)
 
-    def __str__(self):
-        return 'EAP-MSCHAP-v2'
-
 
 class EAPMSEAP(EAPAuthMethod):
 
     def __init__(self):
         EAPAuthMethod.__init__(self, 26)
-
-    def __str__(self):
-        return 'EAP-MS-EAP'
 
 
 class EAPAuthMethodSet(AuthMethodSet):
