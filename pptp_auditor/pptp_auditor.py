@@ -136,7 +136,7 @@ def main():
                 print 'Probing enabled EAP authentication methods {0}/{1}' \
                       .format(eap_auth_methods.get_number_of_known_methods(), len(eap_auth_methods.get_methods()))
                 ppp_eap_auth_enum_automaton = EAPNegotiateAutomaton(target_ip[0], cert_file=args.cert_file,
-                                                                    eap_auth_methods=eap_auth_methods)
+                                                                    identity=args.identity, eap_auth_methods=eap_auth_methods)
                 pptp_automaton = PPTPAutomaton(args.target, ppp_automaton=ppp_eap_auth_enum_automaton, port=args.port)
                 pptp_automaton.run()
     except socket.error as sock_err:
