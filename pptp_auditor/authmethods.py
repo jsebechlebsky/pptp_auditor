@@ -253,9 +253,18 @@ class EAPMSCHAPv2(EAPAuthMethod):
         return 'EAP-MSCHAP-v2'
 
 
+class EAPMSEAP(EAPAuthMethod):
+
+    def __init__(self):
+        EAPAuthMethod.__init__(self, 26)
+
+    def __str__(self):
+        return 'EAP-MS-EAP'
+
+
 class EAPAuthMethodSet(AuthMethodSet):
 
-    def __init__(self, methods=[EAPTLS(), EAPPEAP(), EAPMSCHAPv2(), EAPCHAP()]):
+    def __init__(self, methods=[EAPTLS(), EAPPEAP(), EAPMSCHAPv2(), EAPCHAP(), EAPMSEAP()]):
         AuthMethodSet.__init__(self, methods)
 
     def get_eap_method_for_request(self, request):
