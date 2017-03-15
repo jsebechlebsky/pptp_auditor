@@ -331,6 +331,9 @@ class EAPNegotiateAutomaton(LCPAutomaton):
         self.identity = identity
         self.cert_file = cert_file
         self.eap_tls_data = None
+        # We want to track if we received at least some EAP request after providing Identity,
+        # if not, EAP is disabled for the provided Identity and we want to detect that
+        self.eap_received_some_request = False
 
     def request_eap(self):
         eap_option = PPP_LCP_Auth_Protocol_Option(auth_protocol=0xc227)
@@ -468,6 +471,7 @@ class EAPNegotiateAutomaton(LCPAutomaton):
         pass
 
     def eap_process_request(self, pkt):
+        self.eap_received_some_request = True
         if EAP in pkt:
             requested_method = self.eap_authmethods.get_eap_method_for_method_type(pkt[EAP].type)
         elif EAP_TLS in pkt:
@@ -507,7 +511,6 @@ class EAPNegotiateAutomaton(LCPAutomaton):
     @ATMT.receive_condition(state_eap_negotiated, prio=1)
     def eap_negotiated_receive(self, pkt):
         self.register_gre_reception(pkt)
-
         if PPP_LCP_Configure in pkt:
             if pkt[PPP_LCP_Configure].code == 1:  # LCP Configure-Request
                 self.process_configure_request(pkt[PPP_LCP_Configure])
@@ -526,12 +529,10 @@ class EAPNegotiateAutomaton(LCPAutomaton):
                 self.eap_process_request(pkt)
             else:
                 eap_method.set_enabled()
-                #pkt.show2()
                 self.eap_handle_tls_request(pkt)
         elif EAP in pkt:
-            #pkt.show2()
-            if pkt[EAP].type == 1:  # Indetity
-                if pkt[EAP].code == 1:  # Request
+            if pkt[EAP].code == 1: # Request
+                if pkt[EAP].type == 1:  # Identity
                     log_msg = 'Received EAP-Identity request id {0}, identity \'{1}\''\
                               .format(pkt[EAP].id, pkt[EAP].identity)
                     write_log_info(self.eap_log_tag, log_msg)
@@ -540,14 +541,34 @@ class EAPNegotiateAutomaton(LCPAutomaton):
                               .format(pkt[EAP].id, self.identity)
                     write_log_info(self.eap_log_tag, log_msg)
                     self.send_eap(eap_identity_response)
-                elif pkt[EAP].code == 2:  # Reply
-                    pass  # TODO respond to identity response
+                elif pkt[EAP].type == 2: # Notification
+                    pass # TODO log this
+                elif pkt[EAP].type == 3: # Legacy-Nak
+                    pass # TODO process this
+                elif pkt[EAP].type >= 4:  # Reply
+                    self.eap_process_request(pkt)
                 else:
                     pass  # TODO Warn
-            elif pkt[EAP].type == 3:  # Legacy-Nak
-                pass  # TODO handle this
-            elif pkt[EAP].type >= 4:
-                self.eap_process_request(pkt)
+            elif pkt[EAP].code == 2:  # Response
+                if pkt[EAP].type == 1:  # Identity
+                    pass # No reason for server to send identity response
+                elif pkt[EAP].type == 2:  # Notification
+                    pass # TODO log this
+                elif pkt[EAP].type >= 4:
+                    pass  # No reason to receive response when logging is not actually used
+            elif pkt[EAP].code == 3:  # Success
+                pass
+            elif pkt[EAP].code == 4:  # Failure
+                log_msg = 'Received EAP-Failure id {0}'.format(pkt[EAP].id)
+                write_log_info(self.eap_log_tag, log_msg)
+                # If we received failure before receiving any requests, we can assume
+                # EAP is disabled for the provided Identity
+                if not self.eap_received_some_request:
+                    #TODO log this
+                    eap_methods = self.eap_authmethods.get_methods()
+                    for eap_method in eap_methods:
+                        eap_method.set_disabled()
+                raise self.state_end()
             else:
                 # TODO this is weird
                 raise self.state_end()
