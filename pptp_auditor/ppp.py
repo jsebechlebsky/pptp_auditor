@@ -568,6 +568,8 @@ class EAPNegotiateAutomaton(LCPAutomaton):
                     eap_methods = self.eap_authmethods.get_methods()
                     for eap_method in eap_methods:
                         eap_method.set_disabled()
+                else:
+                    self.eap_last_requested_method.set_disabled()
                 raise self.state_end()
             else:
                 # TODO this is weird
