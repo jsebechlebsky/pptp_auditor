@@ -84,7 +84,7 @@ class PPTPAutomaton(Automaton):
 
     def __init__(self, *args, **kargs):
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        ss = StreamSocket(s)
+        ss = StreamSocket(s, basecls=PPTP)
         self.ppp_automaton = None
         Automaton.__init__(self, *args, ll=lambda: ss, recvsock=lambda: ss,  **kargs)
 
@@ -132,24 +132,23 @@ class PPTPAutomaton(Automaton):
 
     @ATMT.receive_condition(state_start_control_connection_wait, prio=1)
     def start_control_connection_receive(self, pkt):
-        pkt_pptp = PPTP(str(pkt))
-        if PPTPStartControlConnectionReply in pkt_pptp:
-            if pkt_pptp.result_code == 1:  # OK
+        if PPTPStartControlConnectionReply in pkt:
+            if pkt.result_code == 1:  # OK
                 log_msg = 'Received StartControlConnectionReply - OK'
                 write_log_info(self.log_tag, log_msg)
 
-                set_pptp_info_from_scc_reply(self.pptp_info, pkt_pptp)
+                set_pptp_info_from_scc_reply(self.pptp_info, pkt)
                 write_log_info(self.log_tag, self.pptp_info)
                 raise self.state_start_call()
             else:
                 err_msg = 'Received StartControlConnectionReply - Fail, result_code = {0}, error_code = {1}'\
-                                     .format(pkt_pptp.result_code, pkt_pptp.error_code)
+                                     .format(pkt.result_code, pkt.error_code)
                 print >> sys.stderr, err_msg
                 write_log_error(self.log_tag, err_msg)
                 raise self.state_stop_control_connection()
         else:
             err_msg = sys.stderr, 'Unexpected reply received to Start-Control-Connection request: {0}'\
-                                 .format(pkt_pptp.summary())
+                                 .format(pkt.summary())
             print >> sys.stderr, err_msg
             write_log_error(self.log_tag, err_msg)
             raise self.end()
@@ -174,11 +173,10 @@ class PPTPAutomaton(Automaton):
 
     @ATMT.receive_condition(state_start_call_wait, prio=1)
     def start_call_receive(self, pkt):
-        pkt_pptp = PPTP(str(pkt))
-        if PPTPOutgoingCallReply in pkt_pptp:
-            if pkt_pptp.result_code == 1:  # OK
+        if PPTPOutgoingCallReply in pkt:
+            if pkt.result_code == 1:  # OK
                 write_log_info(self.log_tag, 'Received OutgoingCallReply - OK')
-                set_pptp_call_info_from_call_reply(self.call_info, pkt_pptp)
+                set_pptp_call_info_from_call_reply(self.call_info, pkt)
                 write_log_info(self.log_tag, self.call_info)
                 # Start PPP automaton here
                 self.ppp_automaton.set_call_id(self.call_info.call_id)
@@ -186,13 +184,13 @@ class PPTPAutomaton(Automaton):
                 raise self.state_call_established()
             else:
                 err_msg = 'Received OutgoingCallReply - Fail, result code = {0}, error_code = {1}, cause_code = {2}'\
-                          .format(pkt_pptp.result_code, pkt_pptp.error_code, pkt_pptp.cause_code)
+                          .format(pkt.result_code, pkt.error_code, pkt.cause_code)
                 print >> sys.stderr, err_msg
                 write_log_error(self.log_tag, err_msg)
                 raise self.state_stop_control_connection()
         else:
             err_msg = 'Unexpected reply received to Outgoing-Call request: {0}'\
-                                 .format(pkt_pptp.summary())
+                                 .format(pkt.summary())
             print >> sys.stderr, err_msg
             write_log_error(self.log_tag, err_msg)
             raise self.state_stop_control_connection()
@@ -210,16 +208,15 @@ class PPTPAutomaton(Automaton):
 
     @ATMT.receive_condition(state_call_established, prio=1)
     def call_established_receive(self, pkt):
-        pkt_pptp = PPTP(str(pkt))
-        if PPTPEchoRequest in pkt_pptp:
-            reply = PPTPEchoReply(identifier=pkt_pptp.identifier)
+        if PPTPEchoRequest in pkt:
+            reply = PPTPEchoReply(identifier=pkt.identifier)
             log_msg = 'Received Echo-Request with id {0}, responding with Echo-Reply'\
-                      .format(pkt_pptp.identifier)
+                      .format(pkt.identifier)
             write_log_info(self.log_tag, log_msg)
             self.send(reply)
-        elif PPTPSetLinkInfo in pkt_pptp:
+        elif PPTPSetLinkInfo in pkt:
             log_msg = 'Received Set-Link-Info with peer_call_id={0}, recv_accm={1}, send_accm={2}'\
-                      .format(pkt_pptp.peer_call_id, pkt_pptp.receive_accm, pkt_pptp.send_accm)
+                      .format(pkt.peer_call_id, pkt.receive_accm, pkt.send_accm)
             write_log_info(self.log_tag, log_msg)
 
     @ATMT.timeout(state_call_established, timeout=0.2)
@@ -247,13 +244,12 @@ class PPTPAutomaton(Automaton):
 
     @ATMT.receive_condition(state_call_clear_wait, prio=1)
     def call_clear_receive(self, pkt):
-        pkt_pptp = PPTP(str(pkt))
-        if PPTPCallDisconnectNotify in pkt_pptp:
+        if PPTPCallDisconnectNotify in pkt:
             log_msg = 'Received CallDisconnectNotify'
             write_log_info(self.log_tag, log_msg)
         else:
             err_msg = 'Unexpected reply received to Call-Clear request: {0}'\
-                      .format(pkt_pptp.summary())
+                      .format(pkt.summary())
             write_log_error(self.log_tag, err_msg)
             print >> sys.stderr, err_msg
         raise self.state_stop_control_connection()
@@ -278,13 +274,12 @@ class PPTPAutomaton(Automaton):
 
     @ATMT.receive_condition(state_stop_control_connection_wait, prio=1)
     def stop_control_connection_receive(self, pkt):
-        pptp_pkt = PPTP(str(pkt))
-        if PPTPStopControlConnectionReply in pptp_pkt:
+        if PPTPStopControlConnectionReply in pkt:
             log_msg = 'Received StopControlConnectionReply'
             write_log_info(self.log_tag, log_msg)
         else:
             err_msg = 'Unexpected reply to Stop-Control-Connection request: {0}'\
-                                 .format(pptp_pkt.summary())
+                                 .format(pkt.summary())
             print >> sys.stderr, err_msg
         raise self.end()
 
