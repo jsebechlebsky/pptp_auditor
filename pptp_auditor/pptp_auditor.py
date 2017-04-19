@@ -117,8 +117,9 @@ def main():
 
     print 'Probing enabled LCP authentication methods'
     lcp_auth_methods = AuthMethodSet()
-    ppp_lcp_auth_enum_automaton = LCPEnumAuthMethodAutomaton(target_ip[0], lcp_auth_methods=lcp_auth_methods)
-    pptp_automaton = PPTPAutomaton(args.target, ppp_lcp_auth_enum_automaton, port=args.port)
+    pptp_automaton = PPTPAutomaton(args.target, LCPEnumAuthMethodAutomaton,
+                                   ppp_automaton_kwargs={'lcp_auth_methods':lcp_auth_methods},
+                                   port=args.port)
 
     pptp_info = None
     eap_auth_methods = None
@@ -135,9 +136,11 @@ def main():
                 assert (isinstance(eap_auth_methods, EAPAuthMethodSet))
                 print 'Probing enabled EAP authentication methods {0}/{1}' \
                       .format(eap_auth_methods.get_number_of_known_methods(), len(eap_auth_methods.get_methods()))
-                ppp_eap_auth_enum_automaton = EAPNegotiateAutomaton(target_ip[0], cert_file=args.cert_file,
-                                                                    identity=args.identity, eap_auth_methods=eap_auth_methods)
-                pptp_automaton = PPTPAutomaton(args.target, ppp_automaton=ppp_eap_auth_enum_automaton, port=args.port)
+                pptp_automaton = PPTPAutomaton(args.target, EAPNegotiateAutomaton,
+                                               ppp_automaton_kwargs={'cert_file': args.cert_file,
+                                                                     'identity': args.identity,
+                                                                     'eap_auth_methods': eap_auth_methods},
+                                               port=args.port)
                 pptp_automaton.run()
     except socket.error as sock_err:
         print >> sys.stderr, 'Unexpected connection error: {0}'.format(sock_err)

@@ -2,18 +2,20 @@ from scapy.automaton import Automaton, ATMT
 from scapy.layers.inet import IP
 from scapy.layers.ppp import HDLC, PPP, PPP_LCP_ACCM_Option, PPP_LCP_MRU_Option, PPP_LCP_Magic_Number_Option,\
                              PPP_LCP_Configure, PPP_LCP_Echo, PPP_LCP_Auth_Protocol_Option
-from scapy.layers.l2 import GRE_PPTP
-from scapy_pptp.eap_tls import EAP, EAP_TLS
+#from scapy.layers.l2 import GRE_PPTP
+import scapy_pptp
+from scapy_pptp.eap_tls import EAP as EAPmod, EAP_TLS as EAP_TLSmod
 from scapy.layers.tls.handshake import TLSClientHello, TLSCertificate
 from scapy.layers.tls.record import TLS
 from scapy.layers.tls.crypto.suites import _tls_cipher_suites
+from scapy_pptp.gre import GREPPTPConnection
 from authmethods import AuthMethodSet, EAPAuthMethodSet
 from .logger import write_log_info, write_log_error, write_log_warning, write_log_debug
 import random
 import copy
 import sys
 from threading import Event
-
+from scapy.all import *
 
 class PPPState:
 
@@ -29,23 +31,20 @@ class PPPState:
 
 class LCPAutomaton(Automaton):
 
+    def __init__(self, target, call_id, peer_call_id,*args, **kargs):
+        if kargs.has_key('from_automaton') and kargs.get('from_automaton') is not None:
+            self.ss = kargs.get('from_automaton').ss
+        else:
+            self.ss = GREPPTPConnection.grelink(PPP, target, call_id, peer_call_id)
+        Automaton.__init__(self, target, *args, ll=lambda *a, **ka: self.ss, recvsock=lambda *a, **ka: self.ss, **kargs)
+
     def parse_args(self, target, debug=0, store=1, from_automaton=None, **kargs):
-        Automaton.parse_args(self, debug, store, **kargs)
+        Automaton.parse_args(self, debug,store, **kargs)
         if from_automaton is None:
-            self.target = target
-            self.call_id = None
-            self.ip = IP(dst=target, proto='gre')
-            self.gre_seq = 0
-            self.gre_ack = None
             self.sent_requests = {}
             self.next_conf_request_id = 0
             self.ppp_state = PPPState()
         else:
-            self.target = from_automaton.target
-            self.call_id= from_automaton.call_id
-            self.ip = from_automaton.ip
-            self.gre_seq = from_automaton.gre_seq
-            self.gre_ack = from_automaton.gre_ack
             self.sent_requests = from_automaton.sent_requests
             self.next_conf_request_id = from_automaton.next_conf_request_id
             self.ppp_state = from_automaton.ppp_state
@@ -53,56 +52,23 @@ class LCPAutomaton(Automaton):
         self.result = None
         self.log_tag = 'PPP-LCP'
 
-
-    def master_filter(self, pkt):
-        #if IP in pkt and pkt[IP].src == self.target and GREPPTP in pkt:
-        #    pkt.show2()
-        return IP in pkt and pkt[IP].src == self.target and GRE_PPTP in pkt
-
     def set_call_id(self, call_id):
-        self.call_id = call_id
+        self.ss.call_id = call_id
+
+    def set_peer_call_id(self, peer_call_id):
+        self.ss.peer_call_id = peer_call_id
 
     def send_ppp(self, pkt, proto):
         payload = PPP(proto=proto) / pkt if self.ppp_state.address_control_compression else \
             HDLC() / PPP(proto=proto) / pkt
-        gre = GRE_PPTP(seqnum_present=1,
-                       acknum_present=1 if self.gre_ack is not None else 0,
-                       seqence_number=self.gre_seq,
-                       ack_number=self.gre_ack,
-                       call_id=self.call_id,
-                       payload_len=len(str(payload)))
-        pkt_to_send = self.ip / gre / payload
-        #pkt_to_send.show2()
-        self.send(pkt_to_send)
-        self.gre_seq += 1
-        return pkt_to_send
+        self.send(payload)
+        return payload
 
     def send_lcp(self, pkt):
         return self.send_ppp(pkt, 0xc021)
 
     def send_eap(self, pkt):
         return self.send_ppp(pkt, 0xc227)
-
-    def send_gre_ack(self):
-        if self.gre_ack is not None:
-            gre_ack = GRE_PPTP(seqnum_present=0,
-                               acknum_present=1,
-                               ack_number=self.gre_ack,
-                               call_id=self.call_id,
-                               payload_len=0)
-            #gre_ack.show2()
-            pkt_to_send = self.ip / gre_ack
-            self.send(pkt_to_send)
-            return pkt_to_send
-
-    def register_gre_reception(self, pkt):
-        if GRE_PPTP in pkt:
-            if pkt[GRE_PPTP].seqnum_present:
-                self.gre_ack = max(pkt[GRE_PPTP].seqence_number, self.gre_ack) if self.gre_ack is not None else\
-                               pkt[GRE_PPTP].seqence_number
-            if pkt[GRE_PPTP].acknum_present:
-                #TODO acknowledge reception
-                pass
 
     @ATMT.state(initial=1)
     def state_begin(self):
@@ -117,7 +83,6 @@ class LCPAutomaton(Automaton):
         self.sent_requests[self.next_conf_request_id] = self.send_lcp(lcp_conf_request)
         self.next_conf_request_id += 1
         raise self.state_negotiate()
-        #raise self.state_end()
 
     @ATMT.state()
     def state_negotiate(self):
@@ -135,13 +100,10 @@ class LCPAutomaton(Automaton):
                       .format(pkt[PPP_LCP_Echo].id, self.ppp_state.magic_number)
             write_log_info(self.log_tag, log_msg)
             self.send_lcp(lcp_echo_reply)
-        elif pkt[PPP_LCP_Echo].code == 10:  # Echo reply
-            self.send_gre_ack(pkt)
 
 
     @ATMT.receive_condition(state_negotiate, prio=1)
     def negotiate_receive(self, pkt):
-        self.register_gre_reception(pkt)
         if PPP_LCP_Configure in pkt:
             if pkt[PPP_LCP_Configure].code == 1:  # LCP Configure-Request
                 self.process_configure_request(pkt[PPP_LCP_Configure])
@@ -153,8 +115,6 @@ class LCPAutomaton(Automaton):
                 self.process_configure_reject(pkt[PPP_LCP_Configure])
         elif PPP_LCP_Echo in pkt:
             self.respond_to_lcp_echo(pkt)
-        else:
-            self.send_gre_ack()
 
     def process_configure_request(self, pkt):
         raise NotImplementedError
@@ -181,11 +141,16 @@ class LCPAutomaton(Automaton):
     @ATMT.state(final=1)
     def state_end(self):
         #print 'Done'
+        self.ss.atmt.stop()
+        self.ss.close()
         self.event_finished.set()
         self.result = self.automaton_done()
 
 
 class LCPEnumAuthMethodAutomaton(LCPAutomaton):
+
+    def __init__(self, *args, **kargs):
+        LCPAutomaton.__init__(self, *args, **kargs)
 
     def parse_args(self, target, lcp_auth_methods=AuthMethodSet(), debug=5, store=1, from_automaton=None, **kargs):
         LCPAutomaton.parse_args(self, target, debug, store, from_automaton, **kargs)
@@ -195,7 +160,6 @@ class LCPEnumAuthMethodAutomaton(LCPAutomaton):
         suggested_method = self.authmethods.get_next_to_try()
         if suggested_method is None:
             raise self.state_end()
-        #print 'Requesting ', suggested_method
         suggested_option = suggested_method.get_lcp_option()
         request = PPP_LCP_Configure(id=self.next_conf_request_id, options=[suggested_option])
         log_msg = 'Sending LCP Configure request, id {0}, requesting auth method {1}'\
@@ -312,13 +276,15 @@ class LCPEnumAuthMethodAutomaton(LCPAutomaton):
                 log_msg = 'Server rejected auth method {0} in response to request with id {1}'\
                           .format(self.authmethods.get_method_for_option(option), resp.id)
                 write_log_info(self.log_tag, log_msg)
-        self.send_gre_ack()
 
     def automaton_done(self):
         return self.authmethods
 
 
 class EAPNegotiateAutomaton(LCPAutomaton):
+
+    def __init__(self, *args, **kargs):
+        LCPAutomaton.__init__(self, *args, **kargs)
 
     def parse_args(self, target, cert_file=None, eap_auth_methods=None,
                    identity='user', debug=0, store=1, **kargs):
@@ -429,7 +395,6 @@ class EAPNegotiateAutomaton(LCPAutomaton):
                 self.ppp_state.magic_number = option.magic_number
                 log_msg = 'Setting magic number to {0}'.format(option.magic_number)
                 write_log_info(self.log_tag, log_msg)
-        self.send_gre_ack()
         if acked_eap:
             raise self.state_eap_negotiated()
 
@@ -445,7 +410,6 @@ class EAPNegotiateAutomaton(LCPAutomaton):
                 log_msg = 'Server Nak-ed LCP option type {0}, in request id {1}'\
                           .format(option.type, resp.id)
                 write_log_info(self.log_tag, log_msg)
-        self.send_gre_ack()
         if naked_eap_auth:
             raise self.state_end()
 
@@ -462,7 +426,6 @@ class EAPNegotiateAutomaton(LCPAutomaton):
                 log_msg = 'Server rejected LCP option type {0}, in request id {1}'\
                           .format(option.type, resp.id)
                 write_log_info(self.log_tag, log_msg)
-        self.send_gre_ack()
         if rejected_eap_auth:
             raise self.state_end()
 
@@ -472,10 +435,10 @@ class EAPNegotiateAutomaton(LCPAutomaton):
 
     def eap_process_request(self, pkt):
         self.eap_received_some_request = True
-        if EAP in pkt:
-            requested_method = self.eap_authmethods.get_eap_method_for_method_type(pkt[EAP].type)
-        elif EAP_TLS in pkt:
-            requested_method = self.eap_authmethods.get_eap_method_for_method_type(pkt[EAP_TLS].type)
+        if EAPmod in pkt:
+            requested_method = self.eap_authmethods.get_eap_method_for_method_type(pkt[EAPmod].type)
+        elif EAP_TLSmod in pkt:
+            requested_method = self.eap_authmethods.get_eap_method_for_method_type(pkt[EAP_TLSmod].type)
         else:
             requested_method = None
         if requested_method:
@@ -489,33 +452,32 @@ class EAPNegotiateAutomaton(LCPAutomaton):
             self.eap_last_requested_method.set_disabled()
 
         log_msg = 'Received {0} request id {1}'.format(requested_method if requested_method is not None else 'Unknown',
-                                                       pkt[EAP].id if EAP in pkt else pkt[EAP_TLS].id)
+                                                       pkt[EAPmod].id if EAPmod in pkt else pkt[EAP_TLSmod].id)
         write_log_info(self.eap_log_tag, log_msg)
         suggested_method = self.eap_authmethods.get_next_to_try()
         self.eap_last_requested_method = suggested_method
         if suggested_method is None:
             raise self.state_end()
         log_msg = 'Sending Legacy-Nak to EAP-TLS request id {0}, suggesting {1}' \
-                  .format(pkt[EAP].id if EAP in pkt else pkt[EAP_TLS].id, suggested_method)
-        eap_nak = suggested_method.get_eap_nak_response(pkt[EAP].id if EAP in pkt else pkt[EAP_TLS].id)
+                  .format(pkt[EAPmod].id if EAPmod in pkt else pkt[EAP_TLSmod].id, suggested_method)
+        eap_nak = suggested_method.get_eap_nak_response(pkt[EAPmod].id if EAPmod in pkt else pkt[EAP_TLSmod].id)
         write_log_info(self.eap_log_tag, log_msg)
         self.send_eap(eap_nak)
 
     def eap_handle_tls_request(self, pkt):
-        log_msg = 'Received EAP-TLS request id {0}'.format(pkt[EAP_TLS].id)
+        log_msg = 'Received EAP-TLS request id {0}'.format(pkt[EAP_TLSmod].id)
         write_log_info(self.eap_tls_log_tag, log_msg)
 
         tls_client_hello = TLS(msg=TLSClientHello(ciphers=[x for x in _tls_cipher_suites.values()], version='TLS 1.0'))
-        eap_tls_client_hello = EAP_TLS(code=2, id=pkt[EAP_TLS].id, L=1,
+        eap_tls_client_hello = EAP_TLSmod(code=2, id=pkt[EAP_TLSmod].id, L=1,
                                        tls_message_len=len(tls_client_hello), tls_data=str(tls_client_hello))
         self.send_eap(eap_tls_client_hello)
-        log_msg = 'Sending TLS ClientHello message in EAP response id {0}'.format(pkt[EAP_TLS].id)
+        log_msg = 'Sending TLS ClientHello message in EAP response id {0}'.format(pkt[EAP_TLSmod].id)
         write_log_info(self.eap_tls_log_tag, log_msg)
         raise self.state_receive_eap_tls_server_hello()
 
     @ATMT.receive_condition(state_eap_negotiated, prio=1)
     def eap_negotiated_receive(self, pkt):
-        self.register_gre_reception(pkt)
         if PPP_LCP_Configure in pkt:
             if pkt[PPP_LCP_Configure].code == 1:  # LCP Configure-Request
                 self.process_configure_request(pkt[PPP_LCP_Configure])
@@ -528,43 +490,43 @@ class EAPNegotiateAutomaton(LCPAutomaton):
             # TODO this might need some modification, we don't want auth method to change here
         elif PPP_LCP_Echo in pkt:
             self.respond_to_lcp_echo(pkt)
-        elif EAP_TLS in pkt:
+        elif EAP_TLSmod in pkt:
             eap_method = self.eap_authmethods.get_eap_method_for_method_type(13)
             if eap_method.is_state_known():
                 self.eap_process_request(pkt)
             else:
                 eap_method.set_enabled()
                 self.eap_handle_tls_request(pkt)
-        elif EAP in pkt:
-            if pkt[EAP].code == 1: # Request
-                if pkt[EAP].type == 1:  # Identity
+        elif EAPmod in pkt:
+            if pkt[EAPmod].code == 1: # Request
+                if pkt[EAPmod].type == 1:  # Identity
                     log_msg = 'Received EAP-Identity request id {0}, identity \'{1}\''\
-                              .format(pkt[EAP].id, pkt[EAP].identity)
+                              .format(pkt[EAPmod].id, pkt[EAPmod].identity)
                     write_log_info(self.eap_log_tag, log_msg)
-                    eap_identity_response = EAP(code=2, id=pkt[EAP].id, type='Identity', identity=self.identity)
+                    eap_identity_response = EAPmod(code=2, id=pkt[EAPmod].id, type='Identity', identity=self.identity)
                     log_msg = 'Sending EAP-Identity response id {0}, identity \'{1}\''\
-                              .format(pkt[EAP].id, self.identity)
+                              .format(pkt[EAPmod].id, self.identity)
                     write_log_info(self.eap_log_tag, log_msg)
                     self.send_eap(eap_identity_response)
-                elif pkt[EAP].type == 2: # Notification
+                elif pkt[EAPmod].type == 2: # Notification
                     pass # TODO log this
-                elif pkt[EAP].type == 3: # Legacy-Nak
+                elif pkt[EAPmod].type == 3: # Legacy-Nak
                     pass # TODO process this
-                elif pkt[EAP].type >= 4:  # Reply
+                elif pkt[EAPmod].type >= 4:  # Reply
                     self.eap_process_request(pkt)
                 else:
                     pass  # TODO Warn
-            elif pkt[EAP].code == 2:  # Response
-                if pkt[EAP].type == 1:  # Identity
+            elif pkt[EAPmod].code == 2:  # Response
+                if pkt[EAPmod].type == 1:  # Identity
                     pass # No reason for server to send identity response
-                elif pkt[EAP].type == 2:  # Notification
+                elif pkt[EAPmod].type == 2:  # Notification
                     pass # TODO log this
-                elif pkt[EAP].type >= 4:
+                elif pkt[EAPmod].type >= 4:
                     pass  # No reason to receive response when logging is not actually used
-            elif pkt[EAP].code == 3:  # Success
+            elif pkt[EAPmod].code == 3:  # Success
                 pass
-            elif pkt[EAP].code == 4:  # Failure
-                log_msg = 'Received EAP-Failure id {0}'.format(pkt[EAP].id)
+            elif pkt[EAPmod].code == 4:  # Failure
+                log_msg = 'Received EAP-Failure id {0}'.format(pkt[EAPmod].id)
                 write_log_info(self.eap_log_tag, log_msg)
                 # If we received failure before receiving any requests, we can assume
                 # EAP is disabled for the provided Identity
@@ -580,11 +542,11 @@ class EAPNegotiateAutomaton(LCPAutomaton):
                 # TODO this is weird
                 raise self.state_end()
 
-    @ATMT.timeout(state_eap_negotiated, timeout=1)
+    @ATMT.timeout(state_eap_negotiated, timeout=3)
     def eap_negotiated_timeout(self):
         if self.eap_last_requested_method is not None:
             self.eap_last_requested_method.set_disabled()
-        eap_failure = EAP(code='Failure')
+        eap_failure = EAPmod(code='Failure')
         self.send_eap(eap_failure)
         # TODO we might want to wait for LCP Terminate messages ...
         raise self.state_end()
@@ -616,18 +578,18 @@ class EAPNegotiateAutomaton(LCPAutomaton):
             pass
         elif PPP_LCP_Echo in pkt:
             self.respond_to_lcp_echo(pkt)
-        elif EAP_TLS in pkt:
-            if pkt[EAP_TLS].code == 1:  # Request
+        elif EAP_TLSmod in pkt:
+            if pkt[EAP_TLSmod].code == 1:  # Request
                 log_msg = 'Received EAP-TLS request id {0}, containing {1}B fragment of tls data'\
-                         .format(pkt[EAP_TLS].id, len(pkt[EAP_TLS].tls_data))
+                         .format(pkt[EAP_TLSmod].id, len(pkt[EAP_TLSmod].tls_data))
                 write_log_info(self.eap_tls_log_tag, log_msg)
 
                 #print 'TLS data len = {0}'.format(len(pkt[EAP_TLS].tls_data))
                 if self.eap_tls_data is None:
-                    self.eap_tls_data = pkt[EAP_TLS].tls_data
+                    self.eap_tls_data = pkt[EAP_TLSmod].tls_data
                 else:
-                    self.eap_tls_data += pkt[EAP_TLS].tls_data
-                if pkt[EAP_TLS].M == 0:
+                    self.eap_tls_data += pkt[EAP_TLSmod].tls_data
+                if pkt[EAP_TLSmod].M == 0:
                     #print 'Composed_len = {0}'.format(len(self.eap_tls_data))
                     tls_pkt = TLS(self.eap_tls_data)
                     #tls_pkt.show2()
@@ -641,9 +603,9 @@ class EAPNegotiateAutomaton(LCPAutomaton):
                             self.dump_certificates(tls_pkt)
                     raise self.state_end()
                 else:
-                    log_msg = 'Sending EAP-TLS Ack response id {0}'.format(pkt[EAP_TLS].id)
+                    log_msg = 'Sending EAP-TLS Ack response id {0}'.format(pkt[EAP_TLSmod].id)
                     write_log_info(self.eap_tls_log_tag, log_msg)
-                    eap_tls_ack = EAP_TLS(code=2, id=pkt[EAP_TLS].id, type=13)
+                    eap_tls_ack = EAP_TLSmod(code=2, id=pkt[EAP_TLSmod].id, type=13)
                     self.send_eap(eap_tls_ack)
             else:
                 pass

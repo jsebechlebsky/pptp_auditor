@@ -86,22 +86,24 @@ class PPTPAutomaton(Automaton):
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         ss = StreamSocket(s, basecls=PPTP)
         self.ppp_automaton = None
+        self.ppp_automaton_cls = None
         Automaton.__init__(self, *args, ll=lambda: ss, recvsock=lambda: ss,  **kargs)
 
-    def parse_args(self, target_ip, ppp_automaton, port=1723, send_call_clear=False, **kargs):
+    def parse_args(self, target_ip, ppp_automaton_cls, ppp_automaton_kwargs={}, port=1723, send_call_clear=False, **kargs):
         Automaton.parse_args(self, **kargs)
         self.target_ip = target_ip
         self.port = port
         self.pptp_info = None
         self.call_info = PPTPCallInfo()
-        self.ppp_automaton = ppp_automaton
+        self.ppp_automaton_cls = ppp_automaton_cls
+        self.ppp_automaton_kwargs = ppp_automaton_kwargs
         self._send_call_clear = False
         self.log_tag = 'ControlConnection'
 
     @ATMT.state(initial=1)
     def state_connect(self):
 
-        assert(self.ppp_automaton is not None)
+        #assert(self.ppp_automaton is not None)
         # Connect socket to target server
         print 'Connecting to {0}:{1} ...'.format(self.target_ip, self.port),
         try:
@@ -179,7 +181,10 @@ class PPTPAutomaton(Automaton):
                 set_pptp_call_info_from_call_reply(self.call_info, pkt)
                 write_log_info(self.log_tag, self.call_info)
                 # Start PPP automaton here
+                self.ppp_automaton = self.ppp_automaton_cls(self.target_ip, self.call_info.call_id, self.call_info.peer_call_id, **self.ppp_automaton_kwargs)
+
                 self.ppp_automaton.set_call_id(self.call_info.call_id)
+                self.ppp_automaton.set_peer_call_id(self.call_info.peer_call_id)
                 self.ppp_automaton.runbg()
                 raise self.state_call_established()
             else:
