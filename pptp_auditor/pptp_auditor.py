@@ -7,7 +7,8 @@ import subprocess
 import time
 from .logger import setup_logger
 from .pptp import PPTPAutomaton
-from .ppp import LCPEnumAuthMethodAutomaton, EAPNegotiateAutomaton
+from .ppp import LCPEnumAuthMethodAutomaton
+from .ppp_eap import EAPNegotiateAutomaton
 from .capture import PacketRecorder
 from .authmethods import EAPAuthMethodSet, AuthMethodSet, PAP, CHAP_MD5, CHAP_SHA1, MSCHAP, MSCHAPv2, EAP,\
                          get_all_eap_authmethods
