@@ -5,6 +5,7 @@ from scapy.layers.tls.handshake import TLSClientHello, TLSCertificate
 from scapy.layers.tls.record import TLS
 from scapy.layers.tls.crypto.suites import _tls_cipher_suites
 from scapy.automaton import ATMT
+from scapy_pptp.peap import PEAP
 from .logger import write_log_info, write_log_error
 from .ppp import LCPAutomaton
 from .authmethods import AuthMethodSet, EAPAuthMethodSet
@@ -22,6 +23,7 @@ class EAPNegotiateAutomaton(LCPAutomaton):
         self.lcp_authmethods = AuthMethodSet()
         self.eap_log_tag = 'EAP'
         self.eap_tls_log_tag = 'EAP-TLS'
+        self.peap_log_tag = 'PEAP'
         self.eap_authmethods = EAPAuthMethodSet() if eap_auth_methods is None else eap_auth_methods
         self.eap_last_requested_method = None
         self.identity = identity
@@ -163,12 +165,24 @@ class EAPNegotiateAutomaton(LCPAutomaton):
     def state_eap_negotiated(self):
         pass
 
+    def get_id_from_eap_pkt(self, pkt):
+        if EAP in pkt:
+            return pkt[EAP].id
+        elif EAP_TLS in pkt:
+            return pkt[EAP_TLS].id
+        elif PEAP in pkt:
+            return pkt[PEAP].id
+        else:
+            return None
+
     def eap_process_request(self, pkt):
         self.eap_received_some_request = True
         if EAP in pkt:
             requested_method = self.eap_authmethods.get_eap_method_for_method_type(pkt[EAP].type)
         elif EAP_TLS in pkt:
             requested_method = self.eap_authmethods.get_eap_method_for_method_type(pkt[EAP_TLS].type)
+        elif PEAP in pkt:
+            requested_method = self.eap_authmethods.get_eap_method_for_method_type(pkt[PEAP].type)
         else:
             requested_method = None
         if requested_method:
@@ -182,14 +196,14 @@ class EAPNegotiateAutomaton(LCPAutomaton):
             self.eap_last_requested_method.set_disabled()
 
         log_msg = 'Received {0} request id {1}'.format(requested_method if requested_method is not None else 'Unknown',
-                                                       pkt[EAP].id if EAP in pkt else pkt[EAP_TLS].id)
+                                                       self.get_id_from_eap_pkt(pkt))
         write_log_info(self.eap_log_tag, log_msg)
         suggested_method = self.eap_authmethods.get_next_to_try()
         self.eap_last_requested_method = suggested_method
         if suggested_method is None:
             raise self.state_end()
         log_msg = 'Sending Legacy-Nak to EAP-TLS request id {0}, suggesting {1}' \
-                  .format(pkt[EAP].id if EAP in pkt else pkt[EAP_TLS].id, suggested_method)
+                  .format(self.get_id_from_eap_pkt(pkt), suggested_method)
         eap_nak = suggested_method.get_eap_nak_response(pkt[EAP].id if EAP in pkt else pkt[EAP_TLS].id)
         write_log_info(self.eap_log_tag, log_msg)
         self.send_eap(eap_nak)
@@ -209,9 +223,20 @@ class EAPNegotiateAutomaton(LCPAutomaton):
         write_log_info(self.eap_tls_log_tag, log_msg)
         raise self.state_receive_eap_tls_server_hello()
 
+    def eap_handle_peap_request(self, pkt):
+        log_msg = 'Received PEAP request id {0}'.format(pkt[PEAP].id)
+        write_log_info(self.peap_log_tag, log_msg)
+
+        tls_client_hello = TLS(msg=TLSClientHello(ciphers=[x for x in _tls_cipher_suites.values()], version='TLS 1.0'))
+        peap_client_hello = PEAP(code=2, id=pkt[PEAP].id, L=1, V=pkt[PEAP].V,
+                                 tls_message_len=len(tls_client_hello), tls_data=str(tls_client_hello))
+        self.send_eap(peap_client_hello)
+        log_msg = 'Sending TLS ClientHello in PEAP response id {0}'.format(pkt[PEAP].id)
+        write_log_info(self.peap_log_tag, log_msg)
+        raise self.state_receive_peap_server_hello()
+
     @ATMT.receive_condition(state_eap_negotiated, prio=1)
     def eap_negotiated_receive(self, pkt):
-        pkt.show()
         if PPP_LCP_Configure in pkt:
             if pkt[PPP_LCP_Configure].code == 1:  # LCP Configure-Request
                 self.process_configure_request(pkt[PPP_LCP_Configure])
@@ -231,6 +256,13 @@ class EAPNegotiateAutomaton(LCPAutomaton):
             else:
                 eap_method.set_enabled()
                 self.eap_handle_tls_request(pkt)
+        elif PEAP in pkt:
+            eap_method = self.eap_authmethods.get_eap_method_for_method_type(25)
+            if eap_method.is_state_known():
+                self.eap_process_request(pkt)
+            else:
+                eap_method.set_enabled()
+                self.eap_handle_peap_request(pkt)
         elif EAP in pkt:
             if pkt[EAP].code == 1: # Request
                 if pkt[EAP].type == 1:  # Identity
@@ -318,16 +350,12 @@ class EAPNegotiateAutomaton(LCPAutomaton):
                          .format(pkt[EAP_TLS].id, len(pkt[EAP_TLS].tls_data))
                 write_log_info(self.eap_tls_log_tag, log_msg)
 
-                #print 'TLS data len = {0}'.format(len(pkt[EAP_TLS].tls_data))
                 if self.eap_tls_data is None:
                     self.eap_tls_data = pkt[EAP_TLS].tls_data
                 else:
                     self.eap_tls_data += pkt[EAP_TLS].tls_data
                 if pkt[EAP_TLS].M == 0:
-                    #print 'Composed_len = {0}'.format(len(self.eap_tls_data))
                     tls_pkt = TLS(self.eap_tls_data)
-                    #tls_pkt.show2()
-                    #print 'Reassembled {0}B of tls_data'.format(len(self.eap_tls_data))
                     if TLSCertificate in tls_pkt:
                         log_msg = 'Reassembled ServerHello contains certificate chain of {0} certificate(s)'\
                                   .format(tls_pkt[TLSCertificate].certslen)
@@ -349,6 +377,51 @@ class EAPNegotiateAutomaton(LCPAutomaton):
 
     @ATMT.timeout(state=state_receive_eap_tls_server_hello, timeout=1)
     def receive_eap_tls_server_hello_timeout(self):
+        raise self.state_end()
+
+    @ATMT.state()
+    def state_receive_peap_server_hello(self):
+        pass
+
+    @ATMT.receive_condition(state=state_receive_peap_server_hello, prio=1)
+    def receive_peap_server_hello_receive(self, pkt):
+        if PPP_LCP_Configure in pkt:
+            pass
+        elif PPP_LCP_Echo in pkt:
+            self.respond_to_lcp_echo(pkt)
+        elif PEAP in pkt:
+            if pkt[PEAP].code == 1:  # Request
+                log_msg = 'Received PEAP request id {0}, containing {1}B fragment of tls data' \
+                    .format(pkt[PEAP].id, len(pkt[PEAP].tls_data))
+                write_log_info(self.eap_tls_log_tag, log_msg)
+
+                if self.eap_tls_data is None:
+                    self.eap_tls_data = pkt[PEAP].tls_data
+                else:
+                    self.eap_tls_data += pkt[PEAP].tls_data
+                if pkt[PEAP].M == 0:
+                    tls_pkt = TLS(self.eap_tls_data)
+                    if TLSCertificate in tls_pkt:
+                        log_msg = 'Reassembled ServerHello contains certificate chain of {0} certificate(s)' \
+                            .format(tls_pkt[TLSCertificate].certslen)
+                        write_log_info(self.eap_tls_log_tag, log_msg)
+                        if self.cert_file is not None:
+                            print 'Dumping TLS Certificate chain to {0}'.format(self.cert_file)
+                            self.dump_certificates(tls_pkt)
+                    raise self.state_end()
+                else:
+                    log_msg = 'Sending PEAP Ack response id {0}'.format(pkt[EAP_TLS].id)
+                    write_log_info(self.eap_tls_log_tag, log_msg)
+                    eap_tls_ack = PEAP(code=2, id=pkt[PEAP].id, type=25)
+                    self.send_eap(eap_tls_ack)
+            else:
+                pass
+        else:
+            # TODO log this
+            raise self.state_end()
+
+    @ATMT.timeout(state=state_receive_peap_server_hello, timeout=1)
+    def receive_peap_server_hello_timeout(self):
         raise self.state_end()
 
     def automaton_done(self):
