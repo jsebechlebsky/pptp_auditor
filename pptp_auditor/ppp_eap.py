@@ -213,8 +213,8 @@ class EAPNegotiateAutomaton(LCPAutomaton):
         write_log_info(self.eap_log_tag, log_msg)
         self.send_eap(eap_nak)
 
-    def debug(self, lvl, msg):
-        print msg
+    #def debug(self, lvl, msg):
+    #    print msg
 
     def eap_handle_tls_request(self, pkt):
         log_msg = 'Received EAP-TLS request id {0}'.format(pkt[EAP_TLS].id)

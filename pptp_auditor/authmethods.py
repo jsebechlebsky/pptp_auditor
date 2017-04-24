@@ -142,6 +142,12 @@ class AuthMethodSet:
         self.methods[method_to_try] += 1
         return unknown_methods[0]
 
+    def get_method(self, cls):
+        for method in self.methods.keys():
+            if isinstance(method, cls):
+                return method
+        return None
+
     def set_method_state_from_option(self, option, state):
         for method in self.methods.keys():
             if method.is_lcp_option(option):

@@ -9,6 +9,7 @@ from .logger import setup_logger
 from .pptp import PPTPAutomaton
 from .ppp import LCPEnumAuthMethodAutomaton
 from .ppp_eap import EAPNegotiateAutomaton
+from .ppp_chap import CHAPAutomaton
 from .capture import PacketRecorder
 from .authmethods import EAPAuthMethodSet, AuthMethodSet, PAP, CHAP_MD5, CHAP_SHA1, MSCHAP, MSCHAPv2, EAP,\
                          get_all_eap_authmethods
@@ -127,6 +128,15 @@ def main():
     try:
         pptp_info = pptp_automaton.run()
 
+        for chap_method in [CHAP_MD5, CHAP_SHA1, MSCHAP, MSCHAPv2]:
+            if pptp_info is not None and pptp_info.ppp_info.get_method_enabled_state(chap_method):
+                pptp_automaton = PPTPAutomaton(args.target, CHAPAutomaton,
+                                               ppp_automaton_kwargs={'chap_method': pptp_info.ppp_info.get_method(chap_method),
+                                                                     'lcp_auth_methods': lcp_auth_methods},
+                                               port=args.port)
+                pptp_automaton.run()
+
+
         if pptp_info is not None and pptp_info.ppp_info.get_method_enabled_state(EAP):
             if args.test_all_eap_methods:
                 eap_auth_methods = EAPAuthMethodSet(methods=get_all_eap_authmethods())
@@ -170,12 +180,14 @@ def main():
 
     if lcp_auth_methods is not None:
         #  Print LCP Authmethods state
-        table = texttable.Texttable()
+        table = texttable.Texttable(max_width=100)
         table.set_cols_align(['c'] * len(lcp_auth_methods.get_methods()))
         lcp_methods = [PAP, CHAP_MD5, CHAP_SHA1, MSCHAP, MSCHAPv2, EAP]
         table.add_row([str(x()) for x in lcp_methods])
         lcp_states = [lcp_auth_methods.get_method_enabled_state(x) for x in lcp_methods]
         table.add_row([enabled_state_to_string(x) for x in lcp_states])
+        lcp_extras = [lcp_auth_methods.get_method(x).get_extra_as_string() for x in lcp_methods]
+        table.add_row(lcp_extras)
         print_table_with_title('State of LCP Authentication methods', table)
 
     if eap_auth_methods is not None:
