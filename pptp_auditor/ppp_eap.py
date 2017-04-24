@@ -6,6 +6,7 @@ from scapy.layers.tls.record import TLS
 from scapy.layers.tls.crypto.suites import _tls_cipher_suites
 from scapy.automaton import ATMT
 from scapy_pptp.peap import PEAP
+from scapy_pptp.mseap import EAP_MSCHAPv2Challenge
 from .logger import write_log_info, write_log_error
 from .ppp import LCPAutomaton
 from .authmethods import AuthMethodSet, EAPAuthMethodSet
@@ -172,6 +173,8 @@ class EAPNegotiateAutomaton(LCPAutomaton):
             return pkt[EAP_TLS].id
         elif PEAP in pkt:
             return pkt[PEAP].id
+        elif EAP_MSCHAPv2Challenge in pkt:
+            return pkt[EAP_MSCHAPv2Challenge].id
         else:
             return None
 
@@ -183,6 +186,8 @@ class EAPNegotiateAutomaton(LCPAutomaton):
             requested_method = self.eap_authmethods.get_eap_method_for_method_type(pkt[EAP_TLS].type)
         elif PEAP in pkt:
             requested_method = self.eap_authmethods.get_eap_method_for_method_type(pkt[PEAP].type)
+        elif EAP_MSCHAPv2Challenge in pkt:
+            requested_method = self.eap_authmethods.get_eap_method_for_method_type(pkt[EAP_MSCHAPv2].type)
         else:
             requested_method = None
         if requested_method:
@@ -208,8 +213,8 @@ class EAPNegotiateAutomaton(LCPAutomaton):
         write_log_info(self.eap_log_tag, log_msg)
         self.send_eap(eap_nak)
 
-    #def debug(self, lvl, msg):
-    #    print msg
+    def debug(self, lvl, msg):
+        print msg
 
     def eap_handle_tls_request(self, pkt):
         log_msg = 'Received EAP-TLS request id {0}'.format(pkt[EAP_TLS].id)
@@ -263,6 +268,12 @@ class EAPNegotiateAutomaton(LCPAutomaton):
             else:
                 eap_method.set_enabled()
                 self.eap_handle_peap_request(pkt)
+        elif EAP_MSCHAPv2Challenge in pkt:
+            eap_method = self.eap_authmethods.get_eap_method_for_method_type(26)
+            if not eap_method.is_state_known():
+                eap_method.set_enabled()
+                eap_method.add_extra("Name", pkt[EAP_MSCHAPv2Challenge].optional_name)
+            self.eap_process_request(pkt)
         elif EAP in pkt:
             if pkt[EAP].code == 1: # Request
                 if pkt[EAP].type == 1:  # Identity

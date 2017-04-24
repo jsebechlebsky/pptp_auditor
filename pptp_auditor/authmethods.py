@@ -6,6 +6,7 @@ class AuthMethod:
 
     def __init__(self):
         self.enabled_state = None
+        self.extra = {}
 
     def set_enabled(self):
         self.enabled_state = True
@@ -26,6 +27,12 @@ class AuthMethod:
             return "Enabled"
         else:
             return "Disabled"
+
+    def add_extra(self, key, value):
+        self.extra[key]=value
+
+    def get_extra_as_string(self):
+        return "\n".join(["{0}: {1}".format(x,y) for (x,y) in self.extra.items()])
 
     def __str__(self):
         raise NotImplementedError
@@ -249,7 +256,7 @@ class EAPMSEAP(EAPAuthMethod):
 
 class EAPAuthMethodSet(AuthMethodSet):
 
-    def __init__(self, methods=[EAPTLS(), EAPPEAP(), EAPMSCHAPv2(), EAPCHAP(), EAPMSEAP()]):
+    def __init__(self, methods=[EAPTLS(), EAPPEAP(), EAPCHAP(), EAPMSEAP()]):
         AuthMethodSet.__init__(self, methods)
 
     def get_eap_method_for_request(self, request):

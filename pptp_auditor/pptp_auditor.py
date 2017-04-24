@@ -180,7 +180,7 @@ def main():
 
     if eap_auth_methods is not None:
         table = texttable.Texttable()
-        table.set_cols_align(['l', 'c'])
+        table.set_cols_align(['l', 'c','l'])
         for eap_method in eap_auth_methods.get_methods():
-            table.add_row([eap_method, eap_method.get_enabled_state_str()])
+            table.add_row([eap_method, eap_method.get_enabled_state_str(), eap_method.get_extra_as_string()])
         print table.draw() + '\n'
