@@ -343,7 +343,6 @@ class EAPNegotiateAutomaton(LCPAutomaton):
         if self.cert_file is not None:
             certificates = []
             for cert in pkt[TLSCertificate].certs:
-                print cert
                 certificates.append(cert[1].pem)
             try:
                 with open(self.cert_file, 'w') as f:
@@ -354,6 +353,15 @@ class EAPNegotiateAutomaton(LCPAutomaton):
                 print >> sys.stderr, err_msg
                 write_log_error('pptp_auditor', err_msg)
                 raise self.state_end()
+
+    def set_extras_tls(self, method, pkt):
+        assert (TLSCertificate in pkt)
+        for cert in pkt[TLSCertificate].certs:
+            method.add_extra('Serial', '\n'+str(cert[1].serial))
+            method.add_extra('Issuer', '\n'+cert[1].issuer_str)
+            method.add_extra('Subject', '\n'+cert[1].subject_str)
+            method.add_extra('Validity', '\n%s to %s' % (cert[1].notBefore_str, cert[1].notAfter_str))
+
 
     @ATMT.receive_condition(state=state_receive_eap_tls_server_hello, prio=1)
     def receive_eap_tls_server_hello_receive(self, pkt):
@@ -377,6 +385,7 @@ class EAPNegotiateAutomaton(LCPAutomaton):
                         log_msg = 'Reassembled ServerHello contains certificate chain of {0} certificate(s)'\
                                   .format(tls_pkt[TLSCertificate].certslen)
                         write_log_info(self.eap_tls_log_tag, log_msg)
+                        self.set_extras_tls(self.eap_authmethods.get_eap_method_for_method_type(13), tls_pkt)
                         if self.cert_file is not None:
                             print 'Dumping TLS Certificate chain to {0}'.format(self.cert_file)
                             self.dump_certificates(tls_pkt)
@@ -422,6 +431,7 @@ class EAPNegotiateAutomaton(LCPAutomaton):
                         log_msg = 'Reassembled ServerHello contains certificate chain of {0} certificate(s)' \
                             .format(tls_pkt[TLSCertificate].certslen)
                         write_log_info(self.eap_tls_log_tag, log_msg)
+                        self.set_extras_tls(self.eap_authmethods.get_eap_method_for_method_type(25), tls_pkt)
                         if self.cert_file is not None:
                             print 'Dumping TLS Certificate chain to {0}'.format(self.cert_file)
                             self.dump_certificates(tls_pkt)
