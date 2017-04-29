@@ -83,7 +83,7 @@ class CHAPAutomaton(LCPAutomaton):
             lcp_ack = PPP_LCP_Configure(code=2, id=req.id, options=req.options)
             self.send_lcp(lcp_ack)
             self.ppp_state = new_conf
-            self.send_request()
+            raise self.state_chap_negotiated()
 
     def process_configure_reject(self, pkt):
         pass
