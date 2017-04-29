@@ -42,9 +42,9 @@ class CHAPAutomaton(LCPAutomaton):
             elif option.type == 3:  # Authentication protocol
                 if not self.chap_method.is_lcp_option(option):
                     naked_options.append(self.chap_method.get_lcp_option())
-                log_msg = 'Received LCP Configure request id {0} is requesting auth method {1}, will Nak with {2}' \
+                    log_msg = 'Received LCP Configure request id {0} is requesting auth method {1}, will Nak with {2}' \
                     .format(req.id, self.authmethods.get_method_for_option(option), self.chap_method)
-                write_log_info(self.log_tag, log_msg)
+                    write_log_info(self.log_tag, log_msg)
             elif option.type == 5:  # Magic number
                 new_conf.peer_magic_number = option.magic_number
                 log_msg = 'Received LCP Configure request id {0} is requesting magic_number={1}' \
@@ -83,12 +83,16 @@ class CHAPAutomaton(LCPAutomaton):
             lcp_ack = PPP_LCP_Configure(code=2, id=req.id, options=req.options)
             self.send_lcp(lcp_ack)
             self.ppp_state = new_conf
+            self.send_request()
 
     def process_configure_reject(self, pkt):
         pass
 
     def process_configure_nak(self, pkt):
-        pass
+        for option in pkt.options:
+            if option.type == 3:
+                # if aunthetication option was naked we have nothing to do
+                raise self.state_end()
 
     def process_configure_ack(self, pkt):
         log_msg = 'Received Configure-Ack to request with id {0}'.format(pkt.id)

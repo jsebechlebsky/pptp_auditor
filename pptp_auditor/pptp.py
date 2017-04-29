@@ -97,6 +97,8 @@ class PPTPAutomaton(Automaton):
         self.ppp_automaton_kwargs = ppp_automaton_kwargs
         self._send_call_clear = False
         self.log_tag = 'ControlConnection'
+        self.scc_request = PPTPStartControlConnectionRequest(protocol_version=0x0100,
+                                                host_name='test', vendor_string='test')
 
     @ATMT.state(initial=1)
     def state_connect(self):
@@ -116,13 +118,13 @@ class PPTPAutomaton(Automaton):
             print >> sys.stderr, err_msg
             raise self.end()
         print 'Connected'
+        self.send(self.scc_request)
         self.pptp_info = PPTPInfo()
 
         # Send PPTP Start-Control-Connection-Request
         write_log_info(self.log_tag, 'Sending StartControlConnection message to server')
         pkt = PPTPStartControlConnectionRequest(protocol_version=0x0100,
                                                 host_name='test', vendor_string='test')
-        self.send(pkt)
         raise self.state_start_control_connection_wait()
 
     @ATMT.state()
