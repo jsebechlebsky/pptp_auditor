@@ -1,6 +1,6 @@
 from scapy.layers.ppp import PPP_LCP_Auth_Protocol_Option
 from scapy.layers.ppp import PPP_LCP_Configure, PPP_LCP_Echo
-from scapy.layers.l2 import EAP, EAP_TLS
+from scapy.layers.l2 import EAP, EAP_TLS, EAP_MD5
 from scapy.layers.tls.handshake import TLSClientHello, TLSCertificate
 from scapy.layers.tls.record import TLS
 from scapy.layers.tls.crypto.suites import _tls_cipher_suites
@@ -273,6 +273,12 @@ class EAPNegotiateAutomaton(LCPAutomaton):
             if not eap_method.is_state_known():
                 eap_method.set_enabled()
                 eap_method.add_extra("Name", pkt[EAP_MSCHAPv2Challenge].optional_name)
+            self.eap_process_request(pkt)
+        elif EAP_MD5 in pkt:
+            eap_method = self.eap_authmethods.get_eap_method_for_method_type(4)
+            if not eap_method.is_state_known():
+                eap_method.set_enabled()
+                eap_method.add_extra("Name", pkt[EAP_MD5].optional_name)
             self.eap_process_request(pkt)
         elif EAP in pkt:
             if pkt[EAP].code == 1: # Request
