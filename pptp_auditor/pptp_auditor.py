@@ -11,7 +11,7 @@ from .ppp_eap import EAPNegotiateAutomaton
 from .ppp_chap import CHAPAutomaton
 from .capture import PacketRecorder
 from .authmethods import EAPAuthMethodSet, AuthMethodSet, PAP, CHAP_MD5, CHAP_SHA1, MSCHAP, MSCHAPv2, EAP,\
-                         get_all_eap_authmethods, EAPTLS, EAPPEAP
+                         get_all_eap_authmethods, EAPTLS, EAPPEAP, EAPCHAP, EAPMSEAP
 
 
 def check_raw_sock_perm():
@@ -156,6 +156,28 @@ def print_results(target_hostname, alias_list, target_ip, lcp_auth_methods, eap_
 
         print_cert_info(eap_auth_methods.get_method(EAPTLS))
         print_cert_info(eap_auth_methods.get_method(EAPPEAP))
+
+    print '='*50
+    print ' '*20 + 'Warning'
+    print '='*50
+
+    if lcp_auth_methods is not None:
+        if lcp_auth_methods.get_method_enabled_state(PAP):
+            print 'PAP Authentication is enabled. User credentials are sent in plaintext, no encryption is used.'
+        if lcp_auth_methods.get_method_enabled_state(CHAP_MD5) or lcp_auth_methods.get_method_enabled_state(CHAP_SHA1):
+            print 'CHAP Authentication is enabled. Connection is vulnerable to MitM attacks, no encryption is used.'
+        if lcp_auth_methods.get_method_enabled_state(MSCHAP) or lcp_auth_methods.get_method_enabled_state(MSCHAPv2):
+            print 'MSCHAP/MSCHAPv2 Authentication is enabled. NTHash of user password can be recovered by sniffing' \
+                  'network traffic.'
+    if eap_auth_methods is not None:
+        if eap_auth_methods.get_method_enabled_state(EAPPEAP):
+            print 'PEAP Authentication is enabled. Make sure all clients are validating server certificate.'
+        if eap_auth_methods.get_method_enabled_state(EAPCHAP):
+            print 'EAP-MD5 Authentication is enabled. Connection is vulnerable to MitM attacks, no encryption si used.'
+        if eap_auth_methods.get_method_enabled_state(EAPMSEAP):
+            print 'MS-EAP (MSCHAPv2) Authentication is enabld. NTHash of user password can be recovered by sniffing'\
+                  'network traffic'
+    print 'You are using PPTP. The PPTP protocol is not considered to be really secure, even when configured properly.'
 
 
 
