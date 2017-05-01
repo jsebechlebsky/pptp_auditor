@@ -6,7 +6,7 @@ import socket
 import subprocess
 import time
 from .logger import setup_logger
-from .pptp import PPTPAutomaton
+from .pptp import PPTPAutomaton, PPTPInfo
 from .ppp import LCPEnumAuthMethodAutomaton
 from .ppp_eap import EAPNegotiateAutomaton
 from .ppp_chap import CHAPAutomaton
@@ -171,11 +171,16 @@ def main():
     table.add_row(['PPTP server IP', target_ip[0] if target_ip[0] is not None else 'Unknown'])
     table.add_row(['PPTP port', args.port])
     if pptp_info is not None:
+        assert isinstance(pptp_info, PPTPInfo)
         table.add_row(['Protocol version', pptp_info.get_protocol_version_str()])
         table.add_row(['Maximum channels', pptp_info.get_maximum_channels()])
         table.add_row(['Firmware revision', pptp_info.get_firmware_revision()])
         table.add_row(['Host name', '\'{0}\''.format(pptp_info.get_host_name())])
         table.add_row(['Vendor string', '\'{0}\''.format(pptp_info.get_vendor_string())])
+        table.add_row(['Connection speed', pptp_info.get_connection_speed()])
+        table.add_row(['GRE window size', pptp_info.get_window_size()])
+        table.add_row(['Packet processing delay', pptp_info.get_processing_delay()])
+        table.add_row(['Physical channel id', pptp_info.get_physical_channel_id()])
     print_table_with_title('PPTP Info', table)
 
     if lcp_auth_methods is not None:

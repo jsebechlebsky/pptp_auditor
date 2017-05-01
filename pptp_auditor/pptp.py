@@ -19,6 +19,10 @@ class PPTPInfo:
         self.firmware_revision = None
         self.host_name = None
         self.vendor_string = None
+        self.connection_speed = None
+        self.window_size = None
+        self.processing_delay = None
+        self.physical_channel_id = None
         self.ppp_info = None
 
     @classmethod
@@ -43,6 +47,18 @@ class PPTPInfo:
     def get_vendor_string(self):
         return filter_printable(self.vendor_string) if self.vendor_string is not None else 'Unknown'
 
+    def get_connection_speed(self):
+        return '{0:2} MiB/s'.format(float(self.connection_speed) / (1024*1024*8)) if self.connection_speed is not None else 'Unknown'
+
+    def get_window_size(self):
+        return self._unknown_if_none(self.window_size)
+
+    def get_processing_delay(self):
+        return 10.0*self.processing_delay if self.processing_delay is not None else 'Unknown'
+
+    def get_physical_channel_id(self):
+        return self._unknown_if_none(self.physical_channel_id)
+
     def __str__(self):
         return 'protol_version={0}, maximum_channels={1}, firmware_revision={2}, host_name=\'{3}\', vendor_string=\'{4}\''\
                .format(self.protocol_version, self.maximum_channels, self.firmware_revision,
@@ -58,6 +74,15 @@ def set_pptp_info_from_scc_reply(pptp_info, pkt_reply):
     pptp_info.firmware_revision = pkt_reply.firmware_revision
     pptp_info.host_name = pkt_reply.host_name
     pptp_info.vendor_string = pkt_reply.vendor_string
+
+def set_pptp_info_from_oc_reply(pptp_info, pkt_reply):
+    assert(isinstance(pptp_info, PPTPInfo))
+    assert(isinstance(pkt_reply, PPTPOutgoingCallReply))
+
+    pptp_info.connection_speed = pkt_reply.connect_speed
+    pptp_info.window_size = pkt_reply.pkt_window_size
+    pptp_info.processing_delay = pkt_reply.pkt_proc_delay
+    pptp_info.physical_channel_id = pkt_reply.channel_id
 
 
 class PPTPCallInfo:
@@ -179,6 +204,7 @@ class PPTPAutomaton(Automaton):
             if pkt.result_code == 1:  # OK
                 write_log_info(self.log_tag, 'Received OutgoingCallReply - OK')
                 set_pptp_call_info_from_call_reply(self.call_info, pkt)
+                set_pptp_info_from_oc_reply(self.pptp_info, pkt)
                 write_log_info(self.log_tag, self.call_info)
                 # Start PPP automaton here
                 self.ppp_automaton = self.ppp_automaton_cls(self.target_ip, self.call_info.call_id, self.call_info.peer_call_id, **self.ppp_automaton_kwargs)
