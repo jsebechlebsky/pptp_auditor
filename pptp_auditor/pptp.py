@@ -17,6 +17,8 @@ class PPTPInfo:
         self.protocol_version = None
         self.maximum_channels = None
         self.firmware_revision = None
+        self.framing_capabilities = None
+        self.bearer_capabilities = None
         self.host_name = None
         self.vendor_string = None
         self.connection_speed = None
@@ -40,6 +42,12 @@ class PPTPInfo:
 
     def get_firmware_revision(self):
         return self._unknown_if_none(self.firmware_revision)
+
+    def get_framing_capabilities(self):
+        return self._unknown_if_none(self.framing_capabilities)
+
+    def get_bearer_capabilities(self):
+        return self._unknown_if_none(self.bearer_capabilities)
 
     def get_host_name(self):
         return filter_printable(self.host_name) if self.host_name is not None else 'Unknown'
@@ -72,6 +80,12 @@ def set_pptp_info_from_scc_reply(pptp_info, pkt_reply):
     pptp_info.protocol_version = pkt_reply.protocol_version
     pptp_info.maximum_channels = pkt_reply.maximum_channels
     pptp_info.firmware_revision = pkt_reply.firmware_revision
+    pptp_info.framing_capabilities = pkt_reply.sprintf('%PPTPStartControlConnectionReply.framing_capabilities%')
+    if pptp_info.framing_capabilities == '':
+        pptp_info.framing_capabilities = 'None'
+    pptp_info.bearer_capabilities = pkt_reply.sprintf('%PPTPStartControlConnectionReply.bearer_capabilities%')
+    if pptp_info.bearer_capabilities == '':
+        pptp_info.bearer_capabilities = 'None'
     pptp_info.host_name = pkt_reply.host_name
     pptp_info.vendor_string = pkt_reply.vendor_string
 

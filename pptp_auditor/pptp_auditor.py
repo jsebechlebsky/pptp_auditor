@@ -175,6 +175,8 @@ def main():
         table.add_row(['Protocol version', pptp_info.get_protocol_version_str()])
         table.add_row(['Maximum channels', pptp_info.get_maximum_channels()])
         table.add_row(['Firmware revision', pptp_info.get_firmware_revision()])
+        table.add_row(['Framing capabilities', pptp_info.get_framing_capabilities()])
+        table.add_row(['Bearer capabilities', pptp_info.get_bearer_capabilities()])
         table.add_row(['Host name', '\'{0}\''.format(pptp_info.get_host_name())])
         table.add_row(['Vendor string', '\'{0}\''.format(pptp_info.get_vendor_string())])
         table.add_row(['Connection speed', pptp_info.get_connection_speed()])
