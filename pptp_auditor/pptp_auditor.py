@@ -72,6 +72,54 @@ def get_target_address_info(target):
         # TODO check that target IP is proper IP address
     return target_hostname, target_alias_list, target_ip
 
+def print_results(target_hostname, alias_list, target_ip, lcp_auth_methods, eap_auth_methods, pptp_info, args):
+    # Print PPTP connection info
+    table = texttable.Texttable()
+    table.set_cols_align(['l', 'c'])
+    table.add_row(['PPTP server domain', target_hostname if target_hostname is not None else 'Unknown'])
+    table.add_row(
+        ['PPTP server aliases', '\n'.join(alias_list) if alias_list is not None and len(alias_list) > 0 else 'Unknown'])
+    table.add_row(['PPTP server IP', target_ip[0] if target_ip[0] is not None else 'Unknown'])
+    table.add_row(['PPTP port', args.port])
+    if pptp_info is not None:
+        assert isinstance(pptp_info, PPTPInfo)
+        table.add_row(['Protocol version', pptp_info.get_protocol_version_str()])
+        table.add_row(['Maximum channels', pptp_info.get_maximum_channels()])
+        table.add_row(['Firmware revision', pptp_info.get_firmware_revision()])
+        table.add_row(['Framing capabilities', pptp_info.get_framing_capabilities()])
+        table.add_row(['Bearer capabilities', pptp_info.get_bearer_capabilities()])
+        table.add_row(['Host name', '\'{0}\''.format(pptp_info.get_host_name())])
+        table.add_row(['Vendor string', '\'{0}\''.format(pptp_info.get_vendor_string())])
+        table.add_row(['Connection speed', pptp_info.get_connection_speed()])
+        table.add_row(['GRE window size', pptp_info.get_window_size()])
+        table.add_row(['Packet processing delay', pptp_info.get_processing_delay()])
+        table.add_row(['Physical channel id', pptp_info.get_physical_channel_id()])
+    print_table_with_title('PPTP Info', table)
+
+    if lcp_auth_methods is not None:
+        #  Print LCP Authmethods state
+        table = texttable.Texttable(max_width=100)
+        table.set_cols_align(['c'] * len(lcp_auth_methods.get_methods()))
+        lcp_methods = [PAP, CHAP_MD5, CHAP_SHA1, MSCHAP, MSCHAPv2, EAP]
+        table.add_row([str(x()) for x in lcp_methods])
+        lcp_states = [lcp_auth_methods.get_method_enabled_state(x) for x in lcp_methods]
+        table.add_row([enabled_state_to_string(x) for x in lcp_states])
+        lcp_extras = [lcp_auth_methods.get_method(x).get_extra_as_string() for x in lcp_methods]
+        if any(t != "" for t in lcp_extras):
+            table.add_row(lcp_extras)
+        print_table_with_title('State of LCP Authentication methods', table)
+
+    if eap_auth_methods is not None:
+        table = texttable.Texttable()
+        hasExtraInfo = any(eap_method.get_extra_as_string() != "" for eap_method in eap_auth_methods.get_methods())
+        table.set_cols_align(['l', 'c', 'l'] if hasExtraInfo else ['l', 'c'])
+        for eap_method in eap_auth_methods.get_methods():
+            if hasExtraInfo:
+                table.add_row([eap_method, eap_method.get_enabled_state_str(), eap_method.get_extra_as_string()])
+            else:
+                table.add_row([eap_method, eap_method.get_enabled_state_str()])
+        print_table_with_title('EAP (Identity \'{0}\')'.format(args.identity), table)
+
 
 def main():
     parser = argparse.ArgumentParser('PPTP Auditing tool')
@@ -163,48 +211,4 @@ def main():
         if args.drop_icmp:
             restore_iptables_drop_icmp_protocol_unreachable()
 
-    # Print PPTP connection info
-    table = texttable.Texttable()
-    table.set_cols_align(['l', 'c'])
-    table.add_row(['PPTP server domain', target_hostname if target_hostname is not None else 'Unknown'])
-    table.add_row(['PPTP server aliases', '\n'.join(alias_list) if alias_list is not None and len(alias_list) > 0 else 'Unknown'])
-    table.add_row(['PPTP server IP', target_ip[0] if target_ip[0] is not None else 'Unknown'])
-    table.add_row(['PPTP port', args.port])
-    if pptp_info is not None:
-        assert isinstance(pptp_info, PPTPInfo)
-        table.add_row(['Protocol version', pptp_info.get_protocol_version_str()])
-        table.add_row(['Maximum channels', pptp_info.get_maximum_channels()])
-        table.add_row(['Firmware revision', pptp_info.get_firmware_revision()])
-        table.add_row(['Framing capabilities', pptp_info.get_framing_capabilities()])
-        table.add_row(['Bearer capabilities', pptp_info.get_bearer_capabilities()])
-        table.add_row(['Host name', '\'{0}\''.format(pptp_info.get_host_name())])
-        table.add_row(['Vendor string', '\'{0}\''.format(pptp_info.get_vendor_string())])
-        table.add_row(['Connection speed', pptp_info.get_connection_speed()])
-        table.add_row(['GRE window size', pptp_info.get_window_size()])
-        table.add_row(['Packet processing delay', pptp_info.get_processing_delay()])
-        table.add_row(['Physical channel id', pptp_info.get_physical_channel_id()])
-    print_table_with_title('PPTP Info', table)
-
-    if lcp_auth_methods is not None:
-        #  Print LCP Authmethods state
-        table = texttable.Texttable(max_width=100)
-        table.set_cols_align(['c'] * len(lcp_auth_methods.get_methods()))
-        lcp_methods = [PAP, CHAP_MD5, CHAP_SHA1, MSCHAP, MSCHAPv2, EAP]
-        table.add_row([str(x()) for x in lcp_methods])
-        lcp_states = [lcp_auth_methods.get_method_enabled_state(x) for x in lcp_methods]
-        table.add_row([enabled_state_to_string(x) for x in lcp_states])
-        lcp_extras = [lcp_auth_methods.get_method(x).get_extra_as_string() for x in lcp_methods]
-        if any(t != "" for t in lcp_extras):
-            table.add_row(lcp_extras)
-        print_table_with_title('State of LCP Authentication methods', table)
-
-    if eap_auth_methods is not None:
-        table = texttable.Texttable()
-        hasExtraInfo = any(eap_method.get_extra_as_string() != "" for eap_method in eap_auth_methods.get_methods())
-        table.set_cols_align(['l', 'c', 'l'] if hasExtraInfo else ['l', 'c'])
-        for eap_method in eap_auth_methods.get_methods():
-            if hasExtraInfo:
-                table.add_row([eap_method, eap_method.get_enabled_state_str(), eap_method.get_extra_as_string()])
-            else:
-                table.add_row([eap_method, eap_method.get_enabled_state_str()])
-        print_table_with_title('EAP (Identity \'{0}\')'.format(args.identity), table)
+    print_results(target_hostname, alias_list, target_ip, lcp_auth_methods, eap_auth_methods, pptp_info, args)
