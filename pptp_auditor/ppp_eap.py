@@ -315,6 +315,7 @@ class EAPNegotiateAutomaton(LCPAutomaton):
                 # EAP is disabled for the provided Identity
                 if not self.eap_received_some_request:
                     #TODO log this
+                    self.eap_authmethods.set_disabled_for_identity()
                     eap_methods = self.eap_authmethods.get_methods()
                     for eap_method in eap_methods:
                         eap_method.set_disabled()
@@ -324,6 +325,9 @@ class EAPNegotiateAutomaton(LCPAutomaton):
             else:
                 # TODO this is weird
                 raise self.state_end()
+
+        def debug(self, lvl, msg):
+            print msg
 
     @ATMT.timeout(state_eap_negotiated, timeout=3)
     def eap_negotiated_timeout(self):

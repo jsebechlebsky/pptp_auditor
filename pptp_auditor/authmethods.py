@@ -264,6 +264,14 @@ class EAPAuthMethodSet(AuthMethodSet):
 
     def __init__(self, methods=[EAPTLS(), EAPPEAP(), EAPCHAP(), EAPMSEAP()]):
         AuthMethodSet.__init__(self, methods)
+        self.disabled_for_identity = False
+
+
+    def set_disabled_for_identity(self):
+        self.disabled_for_identity = True
+
+    def is_disabled_for_identity(self):
+        return self.disabled_for_identity
 
     def get_eap_method_for_request(self, request):
         for method in self.methods.keys():

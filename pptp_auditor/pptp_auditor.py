@@ -110,15 +110,18 @@ def print_results(target_hostname, alias_list, target_ip, lcp_auth_methods, eap_
         print_table_with_title('State of LCP Authentication methods', table)
 
     if eap_auth_methods is not None:
-        table = texttable.Texttable()
-        hasExtraInfo = any(eap_method.get_extra_as_string() != "" for eap_method in eap_auth_methods.get_methods())
-        table.set_cols_align(['l', 'c', 'l'] if hasExtraInfo else ['l', 'c'])
-        for eap_method in eap_auth_methods.get_methods():
-            if hasExtraInfo:
-                table.add_row([eap_method, eap_method.get_enabled_state_str(), eap_method.get_extra_as_string()])
-            else:
-                table.add_row([eap_method, eap_method.get_enabled_state_str()])
-        print_table_with_title('EAP (Identity \'{0}\')'.format(args.identity), table)
+        if eap_auth_methods.is_disabled_for_identity():
+            print 'EAP is disabled for identity \'{0}\''.format(args.identity)
+        else:
+            table = texttable.Texttable()
+            hasExtraInfo = any(eap_method.get_extra_as_string() != "" for eap_method in eap_auth_methods.get_methods())
+            table.set_cols_align(['l', 'c', 'l'] if hasExtraInfo else ['l', 'c'])
+            for eap_method in eap_auth_methods.get_methods():
+                if hasExtraInfo:
+                    table.add_row([eap_method, eap_method.get_enabled_state_str(), eap_method.get_extra_as_string()])
+                else:
+                    table.add_row([eap_method, eap_method.get_enabled_state_str()])
+            print_table_with_title('EAP (Identity \'{0}\')'.format(args.identity), table)
 
 
 def main():
