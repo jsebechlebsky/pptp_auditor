@@ -18,7 +18,7 @@ setup(
             'pptp_auditor=pptp_auditor.pptp_auditor:main',
         ],
     },
-    dependency_links=['http://github.com/jsebechlebsky/scapy/tarball/master#egg=scapy'],
-    install_requires=['scapy', 'texttable', 'cryptography'],
+    dependency_links=['http://github.com/jsebechlebsky/scapy/tarball/ppp_auth#egg=scapy'],
+    install_requires=['scapy', 'cryptography'],
 )
 
