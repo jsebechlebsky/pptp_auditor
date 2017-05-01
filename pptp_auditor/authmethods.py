@@ -7,6 +7,7 @@ class AuthMethod:
     def __init__(self):
         self.enabled_state = None
         self.extra = {}
+        self.cert = None
 
     def set_enabled(self):
         self.enabled_state = True

@@ -361,6 +361,7 @@ class EAPNegotiateAutomaton(LCPAutomaton):
     def set_extras_tls(self, method, pkt):
         assert (TLSCertificate in pkt)
         for cert in pkt[TLSCertificate].certs:
+            method.cert = cert[1]
             method.add_extra('Serial', '\n'+str(cert[1].serial))
             method.add_extra('Issuer', '\n'+cert[1].issuer_str)
             method.add_extra('Subject', '\n'+cert[1].subject_str)

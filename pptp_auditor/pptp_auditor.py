@@ -1,7 +1,6 @@
 import argparse
 import logging
 import sys
-import texttable
 import socket
 import subprocess
 import time
@@ -12,7 +11,7 @@ from .ppp_eap import EAPNegotiateAutomaton
 from .ppp_chap import CHAPAutomaton
 from .capture import PacketRecorder
 from .authmethods import EAPAuthMethodSet, AuthMethodSet, PAP, CHAP_MD5, CHAP_SHA1, MSCHAP, MSCHAPv2, EAP,\
-                         get_all_eap_authmethods
+                         get_all_eap_authmethods, EAPTLS, EAPPEAP
 
 
 def check_raw_sock_perm():
@@ -72,56 +71,92 @@ def get_target_address_info(target):
         # TODO check that target IP is proper IP address
     return target_hostname, target_alias_list, target_ip
 
+
+def print_property(property_name, value):
+    print '{0:25} {1}'.format(property_name, value)
+
+
+def print_cert_str(cert_str):
+    for s in cert_str.split('/'):
+        if not '=' in s:
+            continue
+        kv = s.split('=')
+        print_property(kv[0]+':', kv[1])
+
+def print_cert_info(method):
+    if method is not None and method.get_enabled_state():
+        print '='*50
+        print ' '*20 + str(method) + ' Certificate'
+        print '='*50
+        if method.cert is not None:
+            print_property('Serial:', str(method.cert.serial))
+            print 'Issuer'
+            print_cert_str(method.cert.issuer_str)
+            print 'Subject'
+            print_cert_str(method.cert.subject_str)
+            print_property('Validity:', '%s to %s' % (method.cert.notBefore_str, method.cert.notAfter_str))
+
+
 def print_results(target_hostname, alias_list, target_ip, lcp_auth_methods, eap_auth_methods, pptp_info, args):
-    # Print PPTP connection info
-    table = texttable.Texttable()
-    table.set_cols_align(['l', 'c'])
-    table.add_row(['PPTP server domain', target_hostname if target_hostname is not None else 'Unknown'])
-    table.add_row(
-        ['PPTP server aliases', '\n'.join(alias_list) if alias_list is not None and len(alias_list) > 0 else 'Unknown'])
-    table.add_row(['PPTP server IP', target_ip[0] if target_ip[0] is not None else 'Unknown'])
-    table.add_row(['PPTP port', args.port])
+    print '='*50
+    print ' '*20 + 'PPTP info'
+    print '='*50
+    print_property('PPTP server domain:', target_hostname if target_hostname is not None else 'Unknown')
+    aliases = alias_list if alias_list is not None and len(alias_list) > 0 else ['Unknown']
+    print_property('PPTP server aliases:', aliases[0])
+    for alias in aliases[1:]:
+        print_property('', alias)
+    print_property('PPTP server IP:', target_ip[0] if target_ip[0] is not None else 'Unknown')
+    print_property('PPTP server port:', args.port)
     if pptp_info is not None:
         assert isinstance(pptp_info, PPTPInfo)
-        table.add_row(['Protocol version', pptp_info.get_protocol_version_str()])
-        table.add_row(['Maximum channels', pptp_info.get_maximum_channels()])
-        table.add_row(['Firmware revision', pptp_info.get_firmware_revision()])
-        table.add_row(['Framing capabilities', pptp_info.get_framing_capabilities()])
-        table.add_row(['Bearer capabilities', pptp_info.get_bearer_capabilities()])
-        table.add_row(['Host name', '\'{0}\''.format(pptp_info.get_host_name())])
-        table.add_row(['Vendor string', '\'{0}\''.format(pptp_info.get_vendor_string())])
-        table.add_row(['Connection speed', pptp_info.get_connection_speed()])
-        table.add_row(['GRE window size', pptp_info.get_window_size()])
-        table.add_row(['Packet processing delay', pptp_info.get_processing_delay()])
-        table.add_row(['Physical channel id', pptp_info.get_physical_channel_id()])
-    print_table_with_title('PPTP Info', table)
+        print_property('Protocol version:', pptp_info.get_protocol_version_str())
+        print_property('Maximum_channels:', pptp_info.get_maximum_channels())
+        print_property('Firmware revision:', pptp_info.get_firmware_revision())
+        print_property('Framing capabilities:', pptp_info.get_framing_capabilities())
+        print_property('Bearer capabilities:', pptp_info.get_bearer_capabilities())
+        print_property('Host name:', pptp_info.get_host_name())
+        print_property('Vendor string:', pptp_info.get_vendor_string())
+        print_property('Connection speed:', pptp_info.get_connection_speed())
+        print_property('GRE window size:', pptp_info.get_window_size())
+        print_property('Packet processing delay:', pptp_info.get_window_size())
+        print_property('Physical channel id:', pptp_info.get_physical_channel_id())
+
 
     if lcp_auth_methods is not None:
-        #  Print LCP Authmethods state
-        table = texttable.Texttable(max_width=100)
-        table.set_cols_align(['c'] * len(lcp_auth_methods.get_methods()))
-        lcp_methods = [PAP, CHAP_MD5, CHAP_SHA1, MSCHAP, MSCHAPv2, EAP]
-        table.add_row([str(x()) for x in lcp_methods])
-        lcp_states = [lcp_auth_methods.get_method_enabled_state(x) for x in lcp_methods]
-        table.add_row([enabled_state_to_string(x) for x in lcp_states])
-        lcp_extras = [lcp_auth_methods.get_method(x).get_extra_as_string() for x in lcp_methods]
-        if any(t != "" for t in lcp_extras):
-            table.add_row(lcp_extras)
-        print_table_with_title('State of LCP Authentication methods', table)
+        print '='*50
+        print ' '*17 + 'PPP Authentication'
+        print '='*50
+        ppp_methods = [PAP, CHAP_MD5, CHAP_SHA1, MSCHAP, MSCHAPv2, EAP]
+        for ppp_method in ppp_methods:
+            method_state = lcp_auth_methods.get_method_enabled_state(ppp_method)
+            extra = lcp_auth_methods.get_method(ppp_method).get_extra_as_string()
+            if extra:
+                print_property(str(ppp_method()), enabled_state_to_string(method_state) + ',' +
+                               lcp_auth_methods.get_method(ppp_method).get_extra_as_string())
+            else:
+                print_property(str(ppp_method()), enabled_state_to_string(method_state))
 
     if eap_auth_methods is not None:
+        print '='*50
+        print ' '*10 + 'EAP Authentication (Identity \'{0}\')'.format(args.identity)
+        print '='*50
         if eap_auth_methods.is_disabled_for_identity():
             print 'EAP is disabled for identity \'{0}\''.format(args.identity)
         else:
-            table = texttable.Texttable()
-            hasExtraInfo = any(eap_method.get_extra_as_string() != "" for eap_method in eap_auth_methods.get_methods())
-            table.set_cols_align(['l', 'c', 'l'] if hasExtraInfo else ['l', 'c'])
             for eap_method in eap_auth_methods.get_methods():
-                if hasExtraInfo:
-                    table.add_row([eap_method, eap_method.get_enabled_state_str(), eap_method.get_extra_as_string()])
+                if isinstance(eap_method, EAPTLS) or isinstance(eap_method, EAPPEAP):
+                    print_property(eap_method, enabled_state_to_string(eap_method.get_enabled_state()))
                 else:
-                    table.add_row([eap_method, eap_method.get_enabled_state_str()])
-            print_table_with_title('EAP (Identity \'{0}\')'.format(args.identity), table)
+                    extra = eap_method.get_extra_as_string()
+                    if extra == '':
+                        print_property(eap_method, enabled_state_to_string(eap_method.get_enabled_state()))
+                    else:
+                        print_property(eap_method, enabled_state_to_string(eap_method.get_enabled_state()) + ',' + extra)
+
+        print_cert_info(eap_auth_methods.get_method(EAPTLS))
+        print_cert_info(eap_auth_methods.get_method(EAPPEAP))
+
 
 
 def main():
