@@ -72,6 +72,10 @@ def get_target_address_info(target):
     return target_hostname, target_alias_list, target_ip
 
 
+def print_header(str):
+    print '{0}\n{1:^50}\n{0}'.format('='*50, str)
+
+
 def print_property(property_name, value):
     print '{0:25} {1}'.format(property_name, value)
 
@@ -98,9 +102,7 @@ def print_cert_info(method):
 
 
 def print_results(target_hostname, alias_list, target_ip, lcp_auth_methods, eap_auth_methods, pptp_info, args):
-    print '='*50
-    print ' '*20 + 'PPTP info'
-    print '='*50
+    print_header('PPTP info')
     print_property('PPTP server domain:', target_hostname if target_hostname is not None else 'Unknown')
     aliases = alias_list if alias_list is not None and len(alias_list) > 0 else ['Unknown']
     print_property('PPTP server aliases:', aliases[0])
@@ -124,9 +126,7 @@ def print_results(target_hostname, alias_list, target_ip, lcp_auth_methods, eap_
 
 
     if lcp_auth_methods is not None:
-        print '='*50
-        print ' '*17 + 'PPP Authentication'
-        print '='*50
+        print_header('PPP Authentication')
         ppp_methods = [PAP, CHAP_MD5, CHAP_SHA1, MSCHAP, MSCHAPv2, EAP]
         for ppp_method in ppp_methods:
             method_state = lcp_auth_methods.get_method_enabled_state(ppp_method)
@@ -138,9 +138,7 @@ def print_results(target_hostname, alias_list, target_ip, lcp_auth_methods, eap_
                 print_property(str(ppp_method()), enabled_state_to_string(method_state))
 
     if eap_auth_methods is not None:
-        print '='*50
-        print ' '*10 + 'EAP Authentication (Identity \'{0}\')'.format(args.identity)
-        print '='*50
+        print_header('EAP Authentication (Identity \'{0}\')'.format(args.identity))
         if eap_auth_methods.is_disabled_for_identity():
             print 'EAP is disabled for identity \'{0}\''.format(args.identity)
         else:
@@ -157,9 +155,7 @@ def print_results(target_hostname, alias_list, target_ip, lcp_auth_methods, eap_
         print_cert_info(eap_auth_methods.get_method(EAPTLS))
         print_cert_info(eap_auth_methods.get_method(EAPPEAP))
 
-    print '='*50
-    print ' '*20 + 'Warning'
-    print '='*50
+    print_header('Warning')
 
     if lcp_auth_methods is not None:
         if lcp_auth_methods.get_method_enabled_state(PAP):
