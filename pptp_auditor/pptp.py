@@ -11,6 +11,13 @@ def filter_printable(s):
     return filter(lambda x: x in set(string.printable), s)
 
 
+def unknownIfNone(f):
+    def decorated_f(*args, **kwargs):
+        res = f(*args, **kwargs)
+        return res if res is not None else 'Unknown'
+    return decorated_f
+
+
 class PPTPInfo:
 
     def __init__(self):
@@ -27,45 +34,51 @@ class PPTPInfo:
         self.physical_channel_id = None
         self.ppp_info = None
 
-    @classmethod
-    def _unknown_if_none(cls, obj):
-        return obj if obj is not None else 'Unknown'
-
     def get_protocol_version_str(self):
         if self.protocol_version is None:
             return 'Unknown'
         else:
             return '{0}.{1}'.format(self.protocol_version >> 8, self.protocol_version & 0xff)
 
+    @unknownIfNone
     def get_maximum_channels(self):
-        return self._unknown_if_none(self.maximum_channels)
+        return self.maximum_channels
 
+    @unknownIfNone
     def get_firmware_revision(self):
-        return self._unknown_if_none(self.firmware_revision)
+        return self.firmware_revision
 
+    @unknownIfNone
     def get_framing_capabilities(self):
-        return self._unknown_if_none(self.framing_capabilities)
+        return self.framing_capabilities
 
+    @unknownIfNone
     def get_bearer_capabilities(self):
-        return self._unknown_if_none(self.bearer_capabilities)
+        return self.bearer_capabilities
 
+    @unknownIfNone
     def get_host_name(self):
-        return filter_printable(self.host_name) if self.host_name is not None else 'Unknown'
+        return filter_printable(self.host_name) if self.host_name is not None else None
 
+    @unknownIfNone
     def get_vendor_string(self):
-        return filter_printable(self.vendor_string) if self.vendor_string is not None else 'Unknown'
+        return filter_printable(self.vendor_string) if self.vendor_string is not None else None
 
+    @unknownIfNone
     def get_connection_speed(self):
-        return '{0:2} MiB/s'.format(float(self.connection_speed) / (1024*1024*8)) if self.connection_speed is not None else 'Unknown'
+        return '{0:2} MiB/s'.format(float(self.connection_speed) / (1024*1024*8)) if self.connection_speed is not None else None
 
+    @unknownIfNone
     def get_window_size(self):
-        return self._unknown_if_none(self.window_size)
+        return self.window_size
 
+    @unknownIfNone
     def get_processing_delay(self):
-        return 10.0*self.processing_delay if self.processing_delay is not None else 'Unknown'
+        return 10.0*self.processing_delay if self.processing_delay is not None else None
 
+    @unknownIfNone
     def get_physical_channel_id(self):
-        return self._unknown_if_none(self.physical_channel_id)
+        return self.physical_channel_id
 
     def __str__(self):
         return 'protol_version={0}, maximum_channels={1}, firmware_revision={2}, host_name=\'{3}\', vendor_string=\'{4}\''\
