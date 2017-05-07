@@ -15,6 +15,11 @@ from .authmethods import EAPAuthMethodSet, AuthMethodSet, PAP, CHAP_MD5, CHAP_SH
 
 
 def check_raw_sock_perm():
+    """
+    Check if user has permissions to create RAW sockets
+    :return:
+        bool: True if raw socket can be succesfully created, False otherwise
+    """
     from scapy.config import conf
     try:
         sck = conf.L3socket()
@@ -25,26 +30,22 @@ def check_raw_sock_perm():
 
 
 def enabled_state_to_string(state):
+    """
+    Translate state to string
+    :param state: bool or None
+    :return:
+        basestring:
+    """
     if state is None:
         return 'Unknown'
     else:
         return 'Enabled' if state else 'Disabled'
 
 
-def print_table_with_title(title, table):
-    table_str = table.draw()
-    top_part_len = table_str.find('\n')
-    top_part = table_str[:top_part_len]
-    print top_part
-    stuffing_len = (top_part_len - 2 - len(title))
-    left_stuffing_len = stuffing_len / 2
-    right_stuffing_len = stuffing_len / 2 + stuffing_len % 2
-    title_part = '|' + (' ' * left_stuffing_len) + title + (' ' * right_stuffing_len) + '|'
-    print title_part
-    print table_str + '\n'
-
-
 def set_iptables_drop_icmp_protocol_unreachable():
+    """
+    Setup iptables firewall rule to drop ICMP protocol-unreachable packets
+    """
     cmd = 'iptables -I OUTPUT -p icmp --icmp-type protocol-unreachable -j DROP 2>&1 1>/dev/null &&'\
           'iptables -I FORWARD -p icmp --icmp-type protocol-unreachable -j DROP 2>&1 1>/dev/null'
     ret_val = subprocess.call(cmd, shell=True)
@@ -53,6 +54,10 @@ def set_iptables_drop_icmp_protocol_unreachable():
 
 
 def restore_iptables_drop_icmp_protocol_unreachable():
+    """
+    Remove iptables rule to drop ICMP protocol-unreachable packets
+    :return:
+    """
     cmd = 'iptables -D OUTPUT -p icmp --icmp-type protocol-unreachable -j DROP 2>&1 1>/dev/null &&' \
           'iptables -D FORWARD -p icmp --icmp-type protocol-unreachable -j DROP 2>&1 1>/dev/null'
     ret_val = subprocess.call(cmd, shell=True)
@@ -61,6 +66,12 @@ def restore_iptables_drop_icmp_protocol_unreachable():
 
 
 def get_target_address_info(target):
+    """
+    Return hostname, alias list and ip address for ip address or domain
+    :param target: ip address or domain
+    :return:
+        (hostname, alias list, ip)
+    """
     target_hostname = None
     target_alias_list = None
     target_ip = None
@@ -73,25 +84,42 @@ def get_target_address_info(target):
 
 
 def print_header(str):
+    """
+    Print simple header/title
+    :param str: text of title
+    """
     print '{0}\n{1:^50}\n{0}'.format('='*50, str)
 
 
 def print_property(property_name, value):
+    """
+    Simple wrapper to print named property
+    :param property_name:   name of property
+    :param value:           value of property
+    """
     print '{0:25} {1}'.format(property_name, value)
 
 
 def print_cert_str(cert_str):
+    """
+    Parse and print info from certificate
+    :param cert_str: info from certificate formatted like PROPERTY1=VALUE1/PROPERTY2=VALUE2
+    :return:
+    """
     for s in cert_str.split('/'):
-        if not '=' in s:
+        if '=' not in s:
             continue
         kv = s.split('=')
         print_property(kv[0]+':', kv[1])
 
+
 def print_cert_info(method):
+    """
+    Print certificate info of EAP method
+    :param method: EAPAuthMethod instance
+    """
     if method is not None and method.get_enabled_state():
-        print '='*50
-        print ' '*20 + str(method) + ' Certificate'
-        print '='*50
+        print_header(str(method) + ' Certificate')
         if method.cert is not None:
             print_property('Serial:', str(method.cert.serial))
             print 'Issuer'
@@ -102,6 +130,16 @@ def print_cert_info(method):
 
 
 def print_results(target_hostname, alias_list, target_ip, lcp_auth_methods, eap_auth_methods, pptp_info, args):
+    """
+    Print formated test results
+    :param target_hostname:     hostname of target server
+    :param alias_list:          alias list of target server
+    :param target_ip:           ip of target server
+    :param lcp_auth_methods:    LCPAuthMethodSet instance with states of PPP auth methods
+    :param eap_auth_methods:    EAPAuthMethodSet instance with states of EAP auth methods
+    :param pptp_info:           PPTPInfo instance with info from control connection
+    :param args:                command line arguments from ArgumentParser
+    """
     print_header('PPTP info')
     print_property('PPTP server domain:', target_hostname if target_hostname is not None else 'Unknown')
     aliases = alias_list if alias_list is not None and len(alias_list) > 0 else ['Unknown']
@@ -176,7 +214,6 @@ def print_results(target_hostname, alias_list, target_ip, lcp_auth_methods, eap_
     print 'You are using PPTP. The PPTP protocol is not considered to be really secure, even when configured properly.'
 
 
-
 def main():
     parser = argparse.ArgumentParser('PPTP Auditing tool')
     parser.add_argument('target', help='Adress of PPTP server')
@@ -239,7 +276,6 @@ def main():
                                                                      'lcp_auth_methods': lcp_auth_methods},
                                                port=args.port)
                 pptp_automaton.run()
-
 
         if pptp_info is not None and pptp_info.ppp_info.get_method_enabled_state(EAP):
             if args.test_all_eap_methods:
