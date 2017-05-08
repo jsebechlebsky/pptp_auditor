@@ -1,6 +1,5 @@
 from scapy.layers.inet import IP
 from scapy.layers.l2 import GRE_PPTP
-from scapy_pptp.eap_tls import *
 from scapy.automaton import Automaton, ATMT
 from scapy.packet import NoPayload
 from scapy.config import conf
